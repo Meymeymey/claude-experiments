@@ -14,7 +14,16 @@ from flask_cors import CORS
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from network import create_hydrogen_network, export_network_to_json, print_network_info
-from simulation import SimulationConfig, HydrogenSystemSimulation
+
+# Optional: simulation requires oemof which needs CBC solver
+SIMULATION_AVAILABLE = False
+try:
+    from simulation import SimulationConfig, HydrogenSystemSimulation
+    SIMULATION_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Simulation not available ({e})")
+    print("Install with: pip install oemof.solph pandas")
+    print("Also install CBC solver: conda install -c conda-forge coincbc")
 
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app)
@@ -113,6 +122,13 @@ def update_network():
 def run_simulation():
     """Run the energy simulation with current config."""
     global last_results
+
+    if not SIMULATION_AVAILABLE:
+        return jsonify({
+            'status': 'error',
+            'message': 'Simulation not available. Install oemof: pip install oemof.solph pandas',
+            'hint': 'Also install CBC solver: conda install -c conda-forge coincbc'
+        }), 503
 
     try:
         config = SimulationConfig(
