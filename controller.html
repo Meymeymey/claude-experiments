@@ -155,12 +155,19 @@
 
         .btn-group {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
 
         .btn-group .btn {
-            flex: 1;
+            flex: 1 1 auto;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.85em;
+            padding: 8px 10px;
         }
 
         /* Network visualization */
@@ -343,6 +350,20 @@
             grid-column: 1 / -1;
         }
 
+        /* Top row: Network + Node Management side by side */
+        .top-row {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 1000px) {
+            .top-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* Modal styles */
         .modal {
             position: fixed;
@@ -394,31 +415,36 @@
         .node-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px;
+            gap: 6px;
+            padding: 6px 8px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 6px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .node-item .node-name {
             font-weight: bold;
             color: #4ecca3;
-            min-width: 80px;
+            flex: 1;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .node-item .node-info {
-            flex: 1;
-            font-size: 0.8rem;
-            color: #888;
+        .node-item .node-type {
+            font-size: 0.65rem;
+            color: #666;
+            white-space: nowrap;
         }
 
         .btn-small {
-            padding: 4px 10px;
-            font-size: 0.75rem;
+            padding: 2px 6px;
+            font-size: 0.65rem;
             border: none;
-            border-radius: 4px;
+            border-radius: 3px;
             cursor: pointer;
+            flex-shrink: 0;
         }
 
         .btn-edit {
@@ -443,38 +469,187 @@
         .node-columns {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
+            gap: 12px;
+        }
+
+        @media (max-width: 1400px) {
+            .node-columns {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .node-columns {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
         .node-column h3 {
             color: #888;
-            font-size: 0.9rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .node-column h3 .count {
             background: rgba(78, 204, 163, 0.3);
-            padding: 2px 8px;
+            padding: 1px 6px;
             border-radius: 10px;
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             color: #4ecca3;
         }
 
         .node-list {
-            min-height: 100px;
-            margin-bottom: 10px;
+            min-height: 60px;
+            margin-bottom: 8px;
         }
 
         .node-list:empty::after {
-            content: 'No nodes yet';
+            content: 'None';
             color: #555;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-style: italic;
+        }
+
+        /* Clickable edges in network view */
+        .pipes-svg line {
+            cursor: pointer;
+            stroke-width: 4;
+            transition: stroke-width 0.2s, opacity 0.2s;
+        }
+
+        .pipes-svg line:hover {
+            stroke-width: 8;
+        }
+
+        .pipes-svg line.disabled {
+            stroke-dasharray: 4 4;
+            opacity: 0.4;
+        }
+
+        /* Connection drag target highlights */
+        .node.valid-target {
+            box-shadow: 0 0 0 3px #4ecca3, 0 0 15px rgba(78, 204, 163, 0.6);
+            animation: pulse-valid 1s infinite;
+        }
+
+        .node.invalid-target {
+            opacity: 0.4;
+        }
+
+        @keyframes pulse-valid {
+            0%, 100% { box-shadow: 0 0 0 3px #4ecca3, 0 0 15px rgba(78, 204, 163, 0.6); }
+            50% { box-shadow: 0 0 0 5px #4ecca3, 0 0 25px rgba(78, 204, 163, 0.8); }
+        }
+
+        /* Hint text for network canvas */
+        .network-hint {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: #666;
+            pointer-events: none;
+        }
+
+        /* Network controls */
+        .network-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: auto;
+            font-size: 0.9rem;
+        }
+
+        .btn-icon {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .zoom-level {
+            font-size: 0.75rem;
+            color: #888;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* Network canvas wrapper for zoom/scroll */
+        .network-canvas-wrapper {
+            width: 100%;
+            height: 450px;
+            min-height: 300px;
+            max-height: 600px;
+            overflow: hidden;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .network-canvas {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        /* Fullscreen mode */
+        #network-card.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            margin: 0;
+            border-radius: 0;
+            max-width: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #network-card.fullscreen .network-canvas-wrapper {
+            flex: 1;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+        }
+
+        #network-card.fullscreen .network-hint {
+            font-size: 0.85rem;
+        }
+
+        #network-card.fullscreen #fullscreen-btn {
+            background: rgba(78, 204, 163, 0.3);
+        }
+
+        /* Fullscreen overlay background */
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 999;
         }
     </style>
 </head>
@@ -483,6 +658,134 @@
         <h1>Hydrogen Simulation Controller</h1>
 
         <div class="grid">
+            <!-- Top Row: Network + Node Management -->
+            <div class="top-row">
+                <!-- Network Card -->
+                <div class="card" id="network-card">
+                <h2>
+                    <span class="icon">🔗</span> Network Topology
+                    <div class="network-controls">
+                        <button class="btn-icon" onclick="zoomIn()" title="Zoom In">+</button>
+                        <span class="zoom-level" id="zoom-level">100%</span>
+                        <button class="btn-icon" onclick="zoomOut()" title="Zoom Out">−</button>
+                        <button class="btn-icon" onclick="resetZoom()" title="Reset Zoom">⟲</button>
+                        <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen" id="fullscreen-btn">⛶</button>
+                    </div>
+                </h2>
+
+                <div class="network-canvas-wrapper" id="network-canvas-wrapper">
+                    <div class="network-canvas" id="network-canvas" style="transform-origin: center center;">
+                        <svg id="pipes-svg" style="position:absolute;width:100%;height:100%;pointer-events:none;"></svg>
+                        <div class="network-hint">Drag to move • Ctrl+Scroll to zoom • Middle-click drag to pan • Ctrl+Drag to connect</div>
+                    </div>
+                </div>
+
+                <div class="btn-group" style="margin-top:10px;">
+                    <button class="btn btn-secondary" onclick="saveLayout()" title="Export Registry">💾 Export</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('layout-file-input').click()" title="Import Registry">📂 Import</button>
+                    <input type="file" id="layout-file-input" accept=".json" style="display:none;" onchange="loadLayoutFile(event)">
+                    <button class="btn btn-secondary" onclick="regenerateConnections()" title="Reset Connections">🔄 Reset</button>
+                </div>
+
+                <div id="network-status"></div>
+            </div>
+
+            <!-- Node Management Card -->
+            <div class="card">
+                <h2><span class="icon">⚙</span> Node Management</h2>
+
+                <!-- Preset Loader -->
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #333;">
+                    <label style="color: #888; font-size: 0.85rem;">Load Preset:</label>
+                    <select id="preset-select" style="flex: 1; padding: 8px; background: #1a1a2e; border: 1px solid #333; border-radius: 4px; color: #eee;">
+                        <option value="">-- Select Preset --</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="loadSelectedPreset()" style="padding: 8px 16px;">
+                        Load
+                    </button>
+                </div>
+
+                <div class="node-columns">
+                    <!-- Generators Column -->
+                    <div class="node-column">
+                        <h3>Generators <span class="count" id="gen-count">0</span></h3>
+                        <div class="node-list" id="generators-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('generator')" style="width:100%;">
+                            + Add Generator
+                        </button>
+                    </div>
+
+                    <!-- Transformers Column -->
+                    <div class="node-column">
+                        <h3>Transformers <span class="count" id="trans-count">0</span></h3>
+                        <div class="node-list" id="transformers-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('transformer')" style="width:100%;">
+                            + Add Transformer
+                        </button>
+                    </div>
+
+                    <!-- Consumers Column -->
+                    <div class="node-column">
+                        <h3>Consumers <span class="count" id="cons-count">0</span></h3>
+                        <div class="node-list" id="consumers-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('consumer')" style="width:100%;">
+                            + Add Consumer
+                        </button>
+                    </div>
+
+                    <!-- Batteries Column -->
+                    <div class="node-column">
+                        <h3>Batteries <span class="count" id="batt-count">0</span></h3>
+                        <div class="node-list" id="batteries-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('battery')" style="width:100%;">
+                            + Add Battery
+                        </button>
+                    </div>
+
+                    <!-- H2 Storage Column -->
+                    <div class="node-column">
+                        <h3>H2 Storage <span class="count" id="h2s-count">0</span></h3>
+                        <div class="node-list" id="h2storage-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('h2_storage')" style="width:100%;">
+                            + Add H2 Storage
+                        </button>
+                    </div>
+                </div>
+
+                <div id="node-status" style="margin-top:15px;"></div>
+            </div>
+            </div><!-- End top-row -->
+
+            <!-- Blender Card -->
+            <div class="card">
+                <h2><span class="icon">🎨</span> Blender Integration</h2>
+
+                <p style="color: #888; margin-bottom: 15px; font-size: 0.85rem;">
+                    Sync node positions between this controller and Blender.
+                </p>
+
+                <div class="btn-group">
+                    <button class="btn btn-blender" onclick="launchBlender()">
+                        🚀 Launch Blender
+                    </button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="exportToBlender()">
+                        📤 Export
+                    </button>
+                    <button class="btn btn-secondary" onclick="syncFromBlender()">
+                        📥 Sync
+                    </button>
+                </div>
+
+                <div id="blender-status"></div>
+
+                <div style="margin-top: 15px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.8rem; color: #888;">
+                    <strong>In Blender:</strong> <code style="color: #4ecca3;">sync_from_blender()</code>
+                </div>
+            </div>
+
             <!-- Parameters Card -->
             <div class="card">
                 <h2><span class="icon">⚡</span> Production & Costs</h2>
@@ -530,83 +833,19 @@
                     <button class="btn btn-primary" onclick="runSimulation()">
                         <span id="sim-icon">▶</span> Run Simulation
                     </button>
+                    <button class="btn btn-secondary" onclick="runDetailedSimulation()">
+                        <span id="log-icon">📋</span> Detailed Log
+                    </button>
                 </div>
 
                 <div id="sim-status"></div>
             </div>
 
-            <!-- Consumer Utility Card -->
+            <!-- Consumer Utility Card (Dynamic) -->
             <div class="card">
                 <h2><span class="icon">📈</span> Consumer Utility Functions</h2>
-
-                <h3>Charlie - Hydrogen (Logarithmic)</h3>
-                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
-                <div class="param-row-3">
-                    <div class="param-group">
-                        <label>Scale (a)</label>
-                        <input type="number" id="charlie_scale" value="30" min="1" step="1">
-                    </div>
-                    <div class="param-group">
-                        <label>Shape (b)</label>
-                        <input type="number" id="charlie_shape" value="5" min="0.1" step="0.5">
-                    </div>
-                    <div class="param-group">
-                        <label>Max Qty (kg/h)</label>
-                        <input type="number" id="charlie_max_quantity" value="25" min="1" step="5">
-                    </div>
-                </div>
-
-                <h3>Delta - Electricity (Logarithmic)</h3>
-                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
-                <div class="param-row-3">
-                    <div class="param-group">
-                        <label>Scale (a)</label>
-                        <input type="number" id="delta_scale" value="25" min="1" step="1">
-                    </div>
-                    <div class="param-group">
-                        <label>Shape (b)</label>
-                        <input type="number" id="delta_shape" value="10" min="0.1" step="0.5">
-                    </div>
-                    <div class="param-group">
-                        <label>Max Qty (kWh/h)</label>
-                        <input type="number" id="delta_max_quantity" value="50" min="1" step="5">
-                    </div>
-                </div>
-
-                <h3 style="display:flex;align-items:center;gap:10px;">
-                    Echo - Both (Cobb-Douglas)
-                    <label style="font-size:0.8rem;color:#888;font-weight:normal;">
-                        <input type="checkbox" id="include_echo" checked style="margin-right:4px;">Enable
-                    </label>
-                </h3>
-                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(h,e) = A × h<sup>α</sup> × e<sup>β</sup></p>
-                <div class="param-row-3">
-                    <div class="param-group">
-                        <label>Scale (A)</label>
-                        <input type="number" id="echo_A" value="15" min="0.1" step="1">
-                    </div>
-                    <div class="param-group">
-                        <label>H2 exp (α)</label>
-                        <input type="number" id="echo_alpha" value="0.4" min="0.01" max="1" step="0.05">
-                    </div>
-                    <div class="param-group">
-                        <label>Elec exp (β)</label>
-                        <input type="number" id="echo_beta" value="0.6" min="0.01" max="1" step="0.05">
-                    </div>
-                </div>
-                <div class="param-row-3">
-                    <div class="param-group">
-                        <label>H2/bundle (kg)</label>
-                        <input type="number" id="echo_h_per_bundle" value="1" min="0.1" step="0.5">
-                    </div>
-                    <div class="param-group">
-                        <label>Elec/bundle (kWh)</label>
-                        <input type="number" id="echo_e_per_bundle" value="3" min="0.1" step="0.5">
-                    </div>
-                    <div class="param-group">
-                        <label>Max bundles/h</label>
-                        <input type="number" id="echo_max_bundles" value="15" min="1" step="1">
-                    </div>
+                <div id="consumer-utility-container">
+                    <p style="color:#666">Loading consumers...</p>
                 </div>
             </div>
 
@@ -688,29 +927,6 @@
                 <div id="results-status"></div>
             </div>
 
-            <!-- Tranche Utilization Card -->
-            <div class="card">
-                <h2><span class="icon">📊</span> Utility Tranche Utilization</h2>
-
-                <h3>Charlie (Hydrogen - Logarithmic)</h3>
-                <table class="tranches-table" id="charlie-tranches-table">
-                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
-                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
-                </table>
-
-                <h3>Delta (Electricity - Logarithmic)</h3>
-                <table class="tranches-table" id="delta-tranches-table">
-                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
-                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
-                </table>
-
-                <h3 id="echo-tranches-header">Echo (Bundles - Cobb-Douglas)</h3>
-                <table class="tranches-table" id="echo-tranches-table">
-                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
-                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
-                </table>
-            </div>
-
             <!-- Time Series Charts Card -->
             <div class="card card-wide">
                 <h2><span class="icon">📈</span> Time Series Analysis</h2>
@@ -727,102 +943,71 @@
                 <div style="margin-top: 15px;">
                     <div id="chart-stacked" style="width:100%;height:300px;"></div>
                 </div>
-            </div>
 
-            <!-- Network Card -->
-            <div class="card">
-                <h2><span class="icon">🔗</span> Network Topology</h2>
-
-                <div class="network-canvas" id="network-canvas">
-                    <svg id="pipes-svg" style="position:absolute;width:100%;height:100%;pointer-events:none;"></svg>
+                <div id="storage-charts-section" style="margin-top: 15px; display: none;">
+                    <h3 style="color: #4ecca3; margin-bottom: 10px; font-size: 14px;">Storage State</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; overflow: hidden;">
+                        <div id="chart-battery" style="width:100%;height:250px;overflow:hidden;"></div>
+                        <div id="chart-h2storage" style="width:100%;height:250px;overflow:hidden;"></div>
+                    </div>
                 </div>
-
-                <div id="network-status"></div>
             </div>
 
-            <!-- Blender Card -->
-            <div class="card">
-                <h2><span class="icon">🎨</span> Blender Integration</h2>
-
-                <p style="color: #888; margin-bottom: 15px; font-size: 0.85rem;">
-                    Sync node positions between this controller and Blender.
-                </p>
-
-                <div class="btn-group">
-                    <button class="btn btn-blender" onclick="launchBlender()">
-                        🚀 Launch Blender
+            <!-- Detailed Simulation Log Card -->
+            <div class="card card-wide" id="detailed-log-card" style="display: none;">
+                <h2><span class="icon">📋</span> Detailed Simulation Log</h2>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                    <label style="color: #888; font-size: 0.85rem;">View timestep:</label>
+                    <input type="range" id="log-timestep-slider" min="0" max="23" value="0"
+                           style="flex: 1;" oninput="updateLogTimestep(this.value)">
+                    <span id="log-timestep-value" style="color: #4ecca3; font-weight: bold; min-width: 60px;">Hour 0</span>
+                    <button class="btn btn-secondary" onclick="exportLogCSV()" style="padding: 6px 12px; font-size: 0.8rem;">
+                        Export CSV
                     </button>
                 </div>
 
-                <div class="btn-group">
-                    <button class="btn btn-secondary" onclick="exportToBlender()">
-                        📤 Export
-                    </button>
-                    <button class="btn btn-secondary" onclick="syncFromBlender()">
-                        📥 Sync
-                    </button>
+                <div id="log-timestep-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                    <!-- Generator Section -->
+                    <div class="log-section" style="background: #1a1a2e; padding: 12px; border-radius: 8px; border-left: 3px solid #f1c40f;">
+                        <h4 style="color: #f1c40f; margin: 0 0 10px 0; font-size: 0.9rem;">Generators</h4>
+                        <div id="log-generators" style="font-family: monospace; font-size: 0.8rem; color: #ccc;"></div>
+                    </div>
+
+                    <!-- Transformer Section -->
+                    <div class="log-section" style="background: #1a1a2e; padding: 12px; border-radius: 8px; border-left: 3px solid #9b59b6;">
+                        <h4 style="color: #9b59b6; margin: 0 0 10px 0; font-size: 0.9rem;">Transformers</h4>
+                        <div id="log-transformers" style="font-family: monospace; font-size: 0.8rem; color: #ccc;"></div>
+                    </div>
+
+                    <!-- Consumer Section -->
+                    <div class="log-section" style="background: #1a1a2e; padding: 12px; border-radius: 8px; border-left: 3px solid #27ae60;">
+                        <h4 style="color: #27ae60; margin: 0 0 10px 0; font-size: 0.9rem;">Consumers</h4>
+                        <div id="log-consumers" style="font-family: monospace; font-size: 0.8rem; color: #ccc;"></div>
+                    </div>
+
+                    <!-- Storage Section -->
+                    <div class="log-section" style="background: #1a1a2e; padding: 12px; border-radius: 8px; border-left: 3px solid #3498db;">
+                        <h4 style="color: #3498db; margin: 0 0 10px 0; font-size: 0.9rem;">Storage</h4>
+                        <div id="log-storage" style="font-family: monospace; font-size: 0.8rem; color: #ccc;"></div>
+                    </div>
                 </div>
 
-                <div id="blender-status"></div>
+                <!-- Full Log Table (collapsible) -->
+                <details style="margin-top: 15px;">
+                    <summary style="cursor: pointer; color: #4ecca3; font-weight: bold; padding: 8px 0;">
+                        Full Timestep Table
+                    </summary>
+                    <div style="max-height: 400px; overflow-y: auto; margin-top: 10px;">
+                        <table id="log-full-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                            <thead id="log-table-head" style="position: sticky; top: 0; background: #16213e;"></thead>
+                            <tbody id="log-table-body"></tbody>
+                        </table>
+                    </div>
+                </details>
 
-                <div style="margin-top: 15px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.8rem; color: #888;">
-                    <strong>In Blender:</strong> <code style="color: #4ecca3;">sync_from_blender()</code>
-                </div>
+                <div id="log-status" style="margin-top: 10px;"></div>
             </div>
 
-            <!-- Node Management Card -->
-            <div class="card card-wide">
-                <h2><span class="icon">⚙</span> Node Management</h2>
-
-                <div class="node-columns">
-                    <!-- Generators Column -->
-                    <div class="node-column">
-                        <h3>Generators <span class="count" id="gen-count">0</span></h3>
-                        <div class="node-list" id="generators-list"></div>
-                        <button class="btn btn-secondary" onclick="openAddNodeModal('generator')" style="width:100%;">
-                            + Add Generator
-                        </button>
-                    </div>
-
-                    <!-- Transformers Column -->
-                    <div class="node-column">
-                        <h3>Transformers <span class="count" id="trans-count">0</span></h3>
-                        <div class="node-list" id="transformers-list"></div>
-                        <button class="btn btn-secondary" onclick="openAddNodeModal('transformer')" style="width:100%;">
-                            + Add Transformer
-                        </button>
-                    </div>
-
-                    <!-- Consumers Column -->
-                    <div class="node-column">
-                        <h3>Consumers <span class="count" id="cons-count">0</span></h3>
-                        <div class="node-list" id="consumers-list"></div>
-                        <button class="btn btn-secondary" onclick="openAddNodeModal('consumer')" style="width:100%;">
-                            + Add Consumer
-                        </button>
-                    </div>
-
-                    <!-- Batteries Column -->
-                    <div class="node-column">
-                        <h3>Batteries <span class="count" id="batt-count">0</span></h3>
-                        <div class="node-list" id="batteries-list"></div>
-                        <button class="btn btn-secondary" onclick="openAddNodeModal('battery')" style="width:100%;">
-                            + Add Battery
-                        </button>
-                    </div>
-
-                    <!-- H2 Storage Column -->
-                    <div class="node-column">
-                        <h3>H2 Storage <span class="count" id="h2s-count">0</span></h3>
-                        <div class="node-list" id="h2storage-list"></div>
-                        <button class="btn btn-secondary" onclick="openAddNodeModal('h2_storage')" style="width:100%;">
-                            + Add H2 Storage
-                        </button>
-                    </div>
-                </div>
-
-                <div id="node-status" style="margin-top:15px;"></div>
-            </div>
         </div>
 
         <!-- Add/Edit Node Modal -->
@@ -1068,24 +1253,7 @@
                 document.getElementById('bravo_cost').value = config.bravo_cost;
                 document.getElementById('grid_cost').value = config.grid_cost;
 
-                // Charlie utility (logarithmic)
-                document.getElementById('charlie_scale').value = config.charlie_scale || 30;
-                document.getElementById('charlie_shape').value = config.charlie_shape || 5;
-                document.getElementById('charlie_max_quantity').value = config.charlie_max_quantity || 25;
-
-                // Delta utility (logarithmic)
-                document.getElementById('delta_scale').value = config.delta_scale || 25;
-                document.getElementById('delta_shape').value = config.delta_shape || 10;
-                document.getElementById('delta_max_quantity').value = config.delta_max_quantity || 50;
-
-                // Echo utility (Cobb-Douglas)
-                document.getElementById('include_echo').checked = config.include_echo !== false;
-                document.getElementById('echo_A').value = config.echo_A || 15;
-                document.getElementById('echo_alpha').value = config.echo_alpha || 0.4;
-                document.getElementById('echo_beta').value = config.echo_beta || 0.6;
-                document.getElementById('echo_h_per_bundle').value = config.echo_h_per_bundle || 1;
-                document.getElementById('echo_e_per_bundle').value = config.echo_e_per_bundle || 3;
-                document.getElementById('echo_max_bundles').value = config.echo_max_bundles || 15;
+                // Consumer utilities are populated via renderConsumerUtilityForms() from node registry
             } catch (e) {
                 console.error('Failed to load config:', e);
             }
@@ -1116,20 +1284,41 @@
             const canvas = document.getElementById('network-canvas');
             const svg = document.getElementById('pipes-svg');
             const rect = canvas.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
 
             canvas.querySelectorAll('.node').forEach(n => n.remove());
             svg.innerHTML = '';
+            svg.style.pointerEvents = 'auto';  // Enable click events on SVG
 
-            // Draw pipes
+            // Helper function to convert normalized world coords to screen coords
+            // Applies pan offset and zoom
+            function toScreenX(normX) {
+                // World to screen: screen = (world - 0.5 - panX) * zoom + 0.5
+                return ((normX - 0.5 - panX) * currentZoom + 0.5) * width;
+            }
+            function toScreenY(normY) {
+                return ((normY - 0.5 - panY) * currentZoom + 0.5) * height;
+            }
+
+            // Scale node size based on zoom
+            const nodeSize = Math.max(20, Math.min(80, 50 * currentZoom));
+            const halfNode = nodeSize / 2;
+            const strokeWidth = Math.max(2, Math.min(6, 4 * currentZoom));
+            const fontSize = Math.max(8, Math.min(16, 12 * currentZoom));
+
+            // Draw pipes (edges)
             edges.forEach(edge => {
                 const source = nodes[edge.source];
                 const target = nodes[edge.target];
                 if (!source || !target) return;  // Skip if nodes not yet loaded
 
-                const x1 = source.x * rect.width;
-                const y1 = source.y * rect.height;
-                const x2 = target.x * rect.width;
-                const y2 = target.y * rect.height;
+                const x1 = toScreenX(source.x);
+                const y1 = toScreenY(source.y);
+                const x2 = toScreenX(target.x);
+                const y2 = toScreenY(target.y);
+
+                const isEnabled = edge.enabled !== false;
 
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', x1);
@@ -1137,8 +1326,22 @@
                 line.setAttribute('x2', x2);
                 line.setAttribute('y2', y2);
                 line.setAttribute('stroke', edge.carrier === 'electricity' ? '#f0c040' : '#3498db');
-                line.setAttribute('stroke-width', '4');
+                line.setAttribute('stroke-width', strokeWidth);
                 line.setAttribute('stroke-linecap', 'round');
+
+                // Visual distinction for disabled connections
+                if (!isEnabled) {
+                    line.setAttribute('stroke-dasharray', '6 4');
+                    line.setAttribute('opacity', '0.4');
+                }
+
+                // Make lines clickable for toggling
+                line.style.cursor = 'pointer';
+                line.dataset.source = edge.source;
+                line.dataset.target = edge.target;
+                line.dataset.carrier = edge.carrier;
+                line.addEventListener('click', handleEdgeClick);
+
                 svg.appendChild(line);
             });
 
@@ -1147,19 +1350,45 @@
                 const el = document.createElement('div');
                 el.className = `node ${node.type}`;
                 el.textContent = name;
-                el.style.left = `${node.x * rect.width - 25}px`;
-                el.style.top = `${node.y * rect.height - 25}px`;
+                el.style.left = `${toScreenX(node.x) - halfNode}px`;
+                el.style.top = `${toScreenY(node.y) - halfNode}px`;
+                el.style.width = `${nodeSize}px`;
+                el.style.height = `${nodeSize}px`;
+                el.style.fontSize = `${fontSize}px`;
                 el.addEventListener('mousedown', startDrag);
                 el.dataset.name = name;
                 canvas.appendChild(el);
             });
         }
 
+        // Handle clicking on an edge to delete it
+        function handleEdgeClick(e) {
+            e.stopPropagation();
+            const source = e.target.dataset.source;
+            const target = e.target.dataset.target;
+            const carrier = e.target.dataset.carrier;
+            deleteConnection(source, target, carrier);
+        }
+
         // Drag functionality
         let dragging = null;
         let dragOffset = { x: 0, y: 0 };
 
+        // Connection drag state (Ctrl+drag)
+        let connectionDrag = {
+            active: false,
+            sourceNode: null,
+            sourceName: null,
+            tempLine: null
+        };
+
         function startDrag(e) {
+            // If Ctrl is held, start connection drag instead of position drag
+            if (e.ctrlKey || e.metaKey) {
+                startConnectionDrag(e);
+                return;
+            }
+
             dragging = e.target;
             const rect = dragging.getBoundingClientRect();
             dragOffset.x = e.clientX - rect.left - 25;
@@ -1172,13 +1401,24 @@
             if (!dragging) return;
             const canvas = document.getElementById('network-canvas');
             const rect = canvas.getBoundingClientRect();
-            let x = (e.clientX - rect.left - dragOffset.x) / rect.width;
-            let y = (e.clientY - rect.top - dragOffset.y) / rect.height;
-            x = Math.max(0.1, Math.min(0.9, x));
-            y = Math.max(0.1, Math.min(0.9, y));
+
+            // Get mouse position relative to canvas as normalized (0-1)
+            const screenNormX = (e.clientX - rect.left) / rect.width;
+            const screenNormY = (e.clientY - rect.top) / rect.height;
+
+            // Convert from screen to world coordinates
+            // Screen: screenNorm = (world - 0.5 - pan) * zoom + 0.5
+            // World: world = (screenNorm - 0.5) / zoom + 0.5 + pan
+            let normX = (screenNormX - 0.5) / currentZoom + 0.5 + panX;
+            let normY = (screenNormY - 0.5) / currentZoom + 0.5 + panY;
+
+            // Clamp to valid range
+            normX = Math.max(0.05, Math.min(0.95, normX));
+            normY = Math.max(0.05, Math.min(0.95, normY));
+
             const name = dragging.dataset.name;
-            nodes[name].x = x;
-            nodes[name].y = y;
+            nodes[name].x = normX;
+            nodes[name].y = normY;
             renderNetwork();
         }
 
@@ -1189,23 +1429,370 @@
             document.removeEventListener('mouseup', stopDrag);
         }
 
-        async function updateNetworkPositions() {
-            const networkNodes = Object.entries(nodes).map(([name, node]) => ({
-                name,
-                node_type: node.type,
-                carrier: node.type === 'producer' ? 'electricity' : node.type === 'converter' ? 'both' : 'hydrogen',
-                position: [(node.x * 6) - 3, ((1 - node.y) * 6) - 3, 0]
-            }));
+        // =========================================
+        // Connection Drag (Ctrl+Drag) Functions
+        // =========================================
 
+        // Connection rules: returns { valid: bool, carrier: string, reason: string }
+        function getConnectionValidity(sourceType, targetType, sourceCarrier, targetCarrier) {
+            // Consumers can't be sources
+            if (sourceType === 'consumer') {
+                return { valid: false, carrier: null, reason: 'Consumers cannot be connection sources' };
+            }
+
+            // Producers can't be targets
+            if (targetType === 'producer') {
+                return { valid: false, carrier: null, reason: 'Producers cannot be connection targets' };
+            }
+
+            // Same node type (except storage) - invalid
+            if (sourceType === targetType && sourceType !== 'storage') {
+                return { valid: false, carrier: null, reason: 'Cannot connect same node types' };
+            }
+
+            // Producer -> Converter: electricity
+            if (sourceType === 'producer' && targetType === 'converter') {
+                return { valid: true, carrier: 'electricity', reason: 'Generator to Transformer' };
+            }
+
+            // Producer -> Consumer: check if consumer accepts electricity
+            if (sourceType === 'producer' && targetType === 'consumer') {
+                if (targetCarrier === 'electricity' || targetCarrier === 'both') {
+                    return { valid: true, carrier: 'electricity', reason: 'Generator to Consumer (electricity)' };
+                }
+                return { valid: false, carrier: null, reason: 'Consumer does not accept electricity' };
+            }
+
+            // Producer -> Storage (electricity): batteries only
+            if (sourceType === 'producer' && targetType === 'storage') {
+                if (targetCarrier === 'electricity') {
+                    return { valid: true, carrier: 'electricity', reason: 'Generator to Battery' };
+                }
+                return { valid: false, carrier: null, reason: 'H2 Storage does not accept electricity' };
+            }
+
+            // Converter -> Consumer: check if consumer accepts hydrogen
+            if (sourceType === 'converter' && targetType === 'consumer') {
+                if (targetCarrier === 'hydrogen' || targetCarrier === 'both') {
+                    return { valid: true, carrier: 'hydrogen', reason: 'Transformer to Consumer (hydrogen)' };
+                }
+                return { valid: false, carrier: null, reason: 'Consumer does not accept hydrogen' };
+            }
+
+            // Converter -> Storage (hydrogen): H2 tanks only
+            if (sourceType === 'converter' && targetType === 'storage') {
+                if (targetCarrier === 'hydrogen') {
+                    return { valid: true, carrier: 'hydrogen', reason: 'Transformer to H2 Storage' };
+                }
+                return { valid: false, carrier: null, reason: 'Battery does not accept hydrogen' };
+            }
+
+            // Storage -> Converter: only batteries can supply electrolyzers
+            if (sourceType === 'storage' && targetType === 'converter') {
+                if (sourceCarrier === 'electricity') {
+                    return { valid: true, carrier: 'electricity', reason: 'Battery to Transformer' };
+                }
+                return { valid: false, carrier: null, reason: 'H2 Storage cannot supply Transformers' };
+            }
+
+            // Storage -> Consumer
+            if (sourceType === 'storage' && targetType === 'consumer') {
+                if (sourceCarrier === 'electricity' && (targetCarrier === 'electricity' || targetCarrier === 'both')) {
+                    return { valid: true, carrier: 'electricity', reason: 'Battery to Consumer' };
+                }
+                if (sourceCarrier === 'hydrogen' && (targetCarrier === 'hydrogen' || targetCarrier === 'both')) {
+                    return { valid: true, carrier: 'hydrogen', reason: 'H2 Storage to Consumer' };
+                }
+                return { valid: false, carrier: null, reason: 'Carrier mismatch' };
+            }
+
+            return { valid: false, carrier: null, reason: 'Invalid connection type' };
+        }
+
+        // Get carrier type for a node
+        function getNodeCarrier(nodeName) {
+            // Check generators (electricity)
+            const gen = nodeRegistry.generators.find(g => g.name === nodeName);
+            if (gen) return 'electricity';
+
+            // Check transformers (output hydrogen)
+            const trans = nodeRegistry.transformers.find(t => t.name === nodeName);
+            if (trans) return trans.output_carrier || 'hydrogen';
+
+            // Check consumers
+            const cons = nodeRegistry.consumers.find(c => c.name === nodeName);
+            if (cons) return cons.carrier;
+
+            // Check batteries (electricity)
+            const batt = (nodeRegistry.batteries || []).find(b => b.name === nodeName);
+            if (batt) return 'electricity';
+
+            // Check H2 storage (hydrogen)
+            const h2s = (nodeRegistry.h2_storage || []).find(h => h.name === nodeName);
+            if (h2s) return 'hydrogen';
+
+            return 'unknown';
+        }
+
+        function startConnectionDrag(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const nodeName = e.target.dataset.name;
+            const nodeData = nodes[nodeName];
+
+            connectionDrag.active = true;
+            connectionDrag.sourceNode = nodeData;
+            connectionDrag.sourceName = nodeName;
+
+            // Create temporary line
+            const svg = document.getElementById('pipes-svg');
+            const canvas = document.getElementById('network-canvas');
+            const rect = canvas.getBoundingClientRect();
+
+            // Convert source node position to screen coordinates
+            const startX = ((nodeData.x - 0.5 - panX) * currentZoom + 0.5) * rect.width;
+            const startY = ((nodeData.y - 0.5 - panY) * currentZoom + 0.5) * rect.height;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('id', 'temp-connection-line');
+            line.setAttribute('x1', startX);
+            line.setAttribute('y1', startY);
+            line.setAttribute('x2', startX);
+            line.setAttribute('y2', startY);
+            line.setAttribute('stroke', '#4ecca3');
+            line.setAttribute('stroke-width', '3');
+            line.setAttribute('stroke-dasharray', '8 4');
+            line.setAttribute('opacity', '0.8');
+            line.style.pointerEvents = 'none';
+            svg.appendChild(line);
+            connectionDrag.tempLine = line;
+
+            // Highlight valid targets
+            highlightValidTargets(nodeName, nodeData.type);
+
+            document.addEventListener('mousemove', doConnectionDrag);
+            document.addEventListener('mouseup', stopConnectionDrag);
+        }
+
+        function doConnectionDrag(e) {
+            if (!connectionDrag.active || !connectionDrag.tempLine) return;
+
+            const canvas = document.getElementById('network-canvas');
+            const rect = canvas.getBoundingClientRect();
+
+            // Use screen coordinates directly (SVG is in screen space)
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            connectionDrag.tempLine.setAttribute('x2', mouseX);
+            connectionDrag.tempLine.setAttribute('y2', mouseY);
+
+            // Check if hovering over a valid target (uses screen coordinates)
+            const targetNode = getNodeAtPosition(mouseX, mouseY, rect);
+            if (targetNode && targetNode !== connectionDrag.sourceName) {
+                const sourceCarrier = getNodeCarrier(connectionDrag.sourceName);
+                const targetCarrier = getNodeCarrier(targetNode);
+                const validity = getConnectionValidity(
+                    connectionDrag.sourceNode.type,
+                    nodes[targetNode].type,
+                    sourceCarrier,
+                    targetCarrier
+                );
+
+                if (validity.valid) {
+                    connectionDrag.tempLine.setAttribute('stroke', validity.carrier === 'electricity' ? '#f0c040' : '#3498db');
+                    connectionDrag.tempLine.setAttribute('stroke-width', '5');
+                } else {
+                    connectionDrag.tempLine.setAttribute('stroke', '#e74c3c');
+                    connectionDrag.tempLine.setAttribute('stroke-width', '3');
+                }
+            } else {
+                connectionDrag.tempLine.setAttribute('stroke', '#4ecca3');
+                connectionDrag.tempLine.setAttribute('stroke-width', '3');
+            }
+        }
+
+        function stopConnectionDrag(e) {
+            if (!connectionDrag.active) return;
+
+            const canvas = document.getElementById('network-canvas');
+            const rect = canvas.getBoundingClientRect();
+            // Use screen coordinates (SVG is in screen space)
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Remove temp line
+            if (connectionDrag.tempLine) {
+                connectionDrag.tempLine.remove();
+            }
+
+            // Remove highlights
+            removeTargetHighlights();
+
+            // Check if dropped on a valid target (uses screen coordinates)
+            const targetName = getNodeAtPosition(mouseX, mouseY, rect);
+            if (targetName && targetName !== connectionDrag.sourceName) {
+                const sourceCarrier = getNodeCarrier(connectionDrag.sourceName);
+                const targetCarrier = getNodeCarrier(targetName);
+                const validity = getConnectionValidity(
+                    connectionDrag.sourceNode.type,
+                    nodes[targetName].type,
+                    sourceCarrier,
+                    targetCarrier
+                );
+
+                if (validity.valid) {
+                    createConnection(connectionDrag.sourceName, targetName, validity.carrier);
+                } else {
+                    showNetworkStatus(validity.reason, 'error');
+                }
+            }
+
+            // Reset state
+            connectionDrag.active = false;
+            connectionDrag.sourceNode = null;
+            connectionDrag.sourceName = null;
+            connectionDrag.tempLine = null;
+
+            document.removeEventListener('mousemove', doConnectionDrag);
+            document.removeEventListener('mouseup', stopConnectionDrag);
+        }
+
+        function getNodeAtPosition(x, y, canvasRect) {
+            // Check if x,y (screen coordinates) is within any node's bounds
+            // Convert each node's world position to screen coordinates
+            for (const [name, node] of Object.entries(nodes)) {
+                const nodeX = ((node.x - 0.5 - panX) * currentZoom + 0.5) * canvasRect.width;
+                const nodeY = ((node.y - 0.5 - panY) * currentZoom + 0.5) * canvasRect.height;
+                const dist = Math.sqrt((x - nodeX) ** 2 + (y - nodeY) ** 2);
+                // Scale hit radius with zoom
+                const hitRadius = Math.max(20, 30 * currentZoom);
+                if (dist < hitRadius) {
+                    return name;
+                }
+            }
+            return null;
+        }
+
+        function highlightValidTargets(sourceName, sourceType) {
+            const sourceCarrier = getNodeCarrier(sourceName);
+            const canvas = document.getElementById('network-canvas');
+
+            canvas.querySelectorAll('.node').forEach(nodeEl => {
+                const targetName = nodeEl.dataset.name;
+                if (targetName === sourceName) return;
+
+                const targetNode = nodes[targetName];
+                const targetCarrier = getNodeCarrier(targetName);
+                const validity = getConnectionValidity(sourceType, targetNode.type, sourceCarrier, targetCarrier);
+
+                if (validity.valid) {
+                    nodeEl.classList.add('valid-target');
+                } else {
+                    nodeEl.classList.add('invalid-target');
+                }
+            });
+        }
+
+        function removeTargetHighlights() {
+            const canvas = document.getElementById('network-canvas');
+            canvas.querySelectorAll('.node').forEach(nodeEl => {
+                nodeEl.classList.remove('valid-target', 'invalid-target');
+            });
+        }
+
+        async function createConnection(source, target, carrier) {
+            // Check if connection already exists
+            const existing = connections.find(c =>
+                c.source === source && c.target === target && c.carrier === carrier
+            );
+
+            if (existing) {
+                // If it exists but is disabled, enable it
+                if (!existing.enabled) {
+                    await toggleConnection(source, target, carrier);
+                    showNetworkStatus(`Connection ${source} → ${target} enabled`, 'success');
+                } else {
+                    showNetworkStatus(`Connection already exists`, 'info');
+                }
+                return;
+            }
+
+            // Create new connection
             try {
-                await fetch(`${API_BASE}/api/network`, {
+                const res = await fetch(`${API_BASE}/api/connections`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nodes: networkNodes })
+                    body: JSON.stringify({ source, target, carrier })
                 });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    connections.push(result.connection);
+                    rebuildNodesAndEdgesWithConnections();
+                    showNetworkStatus(`Connected ${source} → ${target} (${carrier})`, 'success');
+                } else {
+                    showNetworkStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNetworkStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function updateNetworkPositions() {
+            // Build layout dict for API
+            const layout = {};
+            Object.entries(nodes).forEach(([name, node]) => {
+                layout[name] = [(node.x * 6) - 3, ((1 - node.y) * 6) - 3, 0];
+            });
+
+            try {
+                // Update both network JSON and node registry positions
+                await Promise.all([
+                    fetch(`${API_BASE}/api/network`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nodes: Object.entries(nodes).map(([name, node]) => ({
+                                name,
+                                node_type: node.type,
+                                carrier: node.type === 'producer' ? 'electricity' : node.type === 'converter' ? 'both' : 'hydrogen',
+                                position: layout[name]
+                            }))
+                        })
+                    }),
+                    fetch(`${API_BASE}/api/layout`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(layout)
+                    })
+                ]);
+
+                // Also update local nodeRegistry positions
+                updateLocalRegistryPositions(layout);
             } catch (e) {
                 console.error('Failed to update network:', e);
             }
+        }
+
+        // Update local nodeRegistry with new positions
+        function updateLocalRegistryPositions(layout) {
+            nodeRegistry.generators.forEach(g => {
+                if (layout[g.name]) g.position = layout[g.name];
+            });
+            nodeRegistry.transformers.forEach(t => {
+                if (layout[t.name]) t.position = layout[t.name];
+            });
+            nodeRegistry.consumers.forEach(c => {
+                if (layout[c.name]) c.position = layout[c.name];
+            });
+            (nodeRegistry.batteries || []).forEach(b => {
+                if (layout[b.name]) b.position = layout[b.name];
+            });
+            (nodeRegistry.h2_storage || []).forEach(h => {
+                if (layout[h.name]) h.position = layout[h.name];
+            });
         }
 
         // Run simulation
@@ -1226,26 +1813,55 @@
                 bravo_efficiency: parseFloat(document.getElementById('bravo_efficiency').value) / 100,
                 bravo_cost: parseFloat(document.getElementById('bravo_cost').value),
                 grid_cost: parseFloat(document.getElementById('grid_cost').value),
-
-                // Charlie utility (logarithmic)
-                charlie_scale: parseFloat(document.getElementById('charlie_scale').value),
-                charlie_shape: parseFloat(document.getElementById('charlie_shape').value),
-                charlie_max_quantity: parseFloat(document.getElementById('charlie_max_quantity').value),
-
-                // Delta utility (logarithmic)
-                delta_scale: parseFloat(document.getElementById('delta_scale').value),
-                delta_shape: parseFloat(document.getElementById('delta_shape').value),
-                delta_max_quantity: parseFloat(document.getElementById('delta_max_quantity').value),
-
-                // Echo utility (Cobb-Douglas)
-                include_echo: document.getElementById('include_echo').checked,
-                echo_A: parseFloat(document.getElementById('echo_A').value),
-                echo_alpha: parseFloat(document.getElementById('echo_alpha').value),
-                echo_beta: parseFloat(document.getElementById('echo_beta').value),
-                echo_h_per_bundle: parseFloat(document.getElementById('echo_h_per_bundle').value),
-                echo_e_per_bundle: parseFloat(document.getElementById('echo_e_per_bundle').value),
-                echo_max_bundles: parseFloat(document.getElementById('echo_max_bundles').value),
             };
+
+            // Dynamically collect consumer utility params from forms
+            if (nodeRegistry && nodeRegistry.consumers) {
+                nodeRegistry.consumers.forEach(c => {
+                    const name = c.name.toLowerCase();
+                    if (c.consumer_type === 'cobb_douglas') {
+                        const getVal = (id, def) => {
+                            const el = document.getElementById(id);
+                            return el ? parseFloat(el.value) : def;
+                        };
+                        config[`${name}_A`] = getVal(`${name}_A`, c.cd_A || 15);
+                        config[`${name}_alpha`] = getVal(`${name}_alpha`, c.cd_alpha || 0.4);
+                        config[`${name}_beta`] = getVal(`${name}_beta`, c.cd_beta || 0.6);
+                        config[`${name}_h_per_bundle`] = getVal(`${name}_h_per_bundle`, c.cd_h_per_bundle || 1);
+                        config[`${name}_e_per_bundle`] = getVal(`${name}_e_per_bundle`, c.cd_e_per_bundle || 3);
+                        config[`${name}_max_bundles`] = getVal(`${name}_max_bundles`, c.cd_max_bundles || 15);
+                        // Legacy support for Echo
+                        if (name === 'echo') {
+                            config.echo_A = config.echo_A;
+                            config.echo_alpha = config.echo_alpha;
+                            config.echo_beta = config.echo_beta;
+                            config.echo_h_per_bundle = config.echo_h_per_bundle;
+                            config.echo_e_per_bundle = config.echo_e_per_bundle;
+                            config.echo_max_bundles = config.echo_max_bundles;
+                            config.include_echo = true;
+                        }
+                    } else {
+                        const getVal = (id, def) => {
+                            const el = document.getElementById(id);
+                            return el ? parseFloat(el.value) : def;
+                        };
+                        config[`${name}_scale`] = getVal(`${name}_scale`, c.log_scale || 30);
+                        config[`${name}_shape`] = getVal(`${name}_shape`, c.log_shape || 5);
+                        config[`${name}_max_quantity`] = getVal(`${name}_max_quantity`, c.log_max_quantity || 25);
+                        // Legacy support for Charlie/Delta
+                        if (name === 'charlie') {
+                            config.charlie_scale = config.charlie_scale;
+                            config.charlie_shape = config.charlie_shape;
+                            config.charlie_max_quantity = config.charlie_max_quantity;
+                        }
+                        if (name === 'delta') {
+                            config.delta_scale = config.delta_scale;
+                            config.delta_shape = config.delta_shape;
+                            config.delta_max_quantity = config.delta_max_quantity;
+                        }
+                    }
+                });
+            }
 
             try {
                 await fetch(`${API_BASE}/api/config`, {
@@ -1271,6 +1887,326 @@
 
             btn.disabled = false;
             icon.textContent = '▶';
+        }
+
+        // Detailed simulation log storage
+        let detailedLogData = null;
+
+        // Helper to safely format numbers (handles null/undefined from NaN sanitization)
+        function safeFixed(val, decimals = 2) {
+            if (val === null || val === undefined || isNaN(val)) return '0';
+            return Number(val).toFixed(decimals);
+        }
+
+        async function runDetailedSimulation() {
+            const btn = document.querySelector('[onclick="runDetailedSimulation()"]');
+            const icon = document.getElementById('log-icon');
+
+            btn.disabled = true;
+            icon.textContent = '⏳';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/simulate/detailed`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    // Build and download CSV directly
+                    const logEntries = data.detailed_log;
+                    const firstEntry = logEntries[0];
+
+                    // Build CSV header
+                    let headers = ['Hour'];
+                    for (const name of Object.keys(firstEntry.generators || {})) {
+                        headers.push(`${name}_kW`, `${name}_cost_ct`);
+                    }
+                    for (const name of Object.keys(firstEntry.transformers || {})) {
+                        headers.push(`${name}_input_kW`, `${name}_output_kg`, `${name}_cost_ct`);
+                    }
+                    for (const name of Object.keys(firstEntry.consumers || {})) {
+                        headers.push(`${name}_consumption`, `${name}_utility_ct`);
+                    }
+                    for (const name of Object.keys(firstEntry.storage || {})) {
+                        headers.push(`${name}_level`, `${name}_in`, `${name}_out`);
+                    }
+                    headers.push('Excess_Elec_kW', 'Excess_H2_kg');
+
+                    let csv = headers.join(',') + '\n';
+
+                    // Build CSV rows
+                    for (const entry of logEntries) {
+                        let row = [entry.hour];
+
+                        for (const [name, genData] of Object.entries(entry.generators || {})) {
+                            const val = genData.production_kW !== undefined ? genData.production_kW : genData.supply_kW;
+                            row.push(safeFixed(val, 2), safeFixed(genData.cost_ct, 2));
+                        }
+                        for (const [name, transData] of Object.entries(entry.transformers || {})) {
+                            row.push(safeFixed(transData.input_kW, 2), safeFixed(transData.output_kg, 3), safeFixed(transData.cost_ct, 2));
+                        }
+                        for (const [name, consData] of Object.entries(entry.consumers || {})) {
+                            row.push(safeFixed(consData.total_consumption, 3), safeFixed(consData.total_utility, 2));
+                        }
+                        for (const [name, storData] of Object.entries(entry.storage || {})) {
+                            const lvl = storData.level_kWh !== undefined ? storData.level_kWh : storData.level_kg;
+                            const inFlow = storData.charge_kW !== undefined ? storData.charge_kW : storData.injection_kg;
+                            const outFlow = storData.discharge_kW !== undefined ? storData.discharge_kW : storData.withdrawal_kg;
+                            row.push(safeFixed(lvl, 2), safeFixed(inFlow, 2), safeFixed(outFlow, 2));
+                        }
+                        row.push(
+                            safeFixed(entry.excess?.electricity_kW || 0, 2),
+                            safeFixed(entry.excess?.hydrogen_kg || 0, 3)
+                        );
+
+                        csv += row.join(',') + '\n';
+                    }
+
+                    // Trigger download
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `simulation_log_${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (e) {
+                alert('Error running simulation: ' + e.message);
+                console.error('Detailed simulation error:', e);
+            }
+
+            btn.disabled = false;
+            icon.textContent = '📋';
+        }
+
+        function updateLogTimestep(t) {
+            t = parseInt(t);
+            document.getElementById('log-timestep-value').textContent = `Hour ${t}`;
+
+            if (!detailedLogData || !detailedLogData.detailed_log) return;
+
+            const entry = detailedLogData.detailed_log[t];
+            if (!entry) return;
+
+            // Generators
+            const genDiv = document.getElementById('log-generators');
+            let genHtml = '';
+            for (const [name, data] of Object.entries(entry.generators || {})) {
+                if (data.production_kW !== undefined) {
+                    genHtml += `<div style="margin-bottom: 6px;">
+                        <span style="color: #f1c40f;">${name}</span>
+                        <span style="float: right;">${data.production_kW.toFixed(1)} kW</span>
+                        <br><span style="color: #888; font-size: 0.7rem;">Cost: ${data.cost_ct.toFixed(1)} ct | ${data.profile_type || 'grid'}</span>
+                    </div>`;
+                } else if (data.supply_kW !== undefined) {
+                    genHtml += `<div style="margin-bottom: 6px;">
+                        <span style="color: #e74c3c;">${name}</span>
+                        <span style="float: right;">${data.supply_kW.toFixed(1)} kW</span>
+                        <br><span style="color: #888; font-size: 0.7rem;">Cost: ${data.cost_ct.toFixed(1)} ct</span>
+                    </div>`;
+                }
+            }
+            genDiv.innerHTML = genHtml || '<span style="color: #666;">No generators</span>';
+
+            // Transformers
+            const transDiv = document.getElementById('log-transformers');
+            let transHtml = '';
+            for (const [name, data] of Object.entries(entry.transformers || {})) {
+                transHtml += `<div style="margin-bottom: 6px;">
+                    <span style="color: #9b59b6;">${name}</span>
+                    <br><span style="color: #888; font-size: 0.7rem;">In: ${data.input_kW.toFixed(1)} kW → Out: ${data.output_kg.toFixed(2)} kg</span>
+                    <br><span style="color: #888; font-size: 0.7rem;">Eff: ${(data.efficiency * 100).toFixed(0)}% | Cost: ${data.cost_ct.toFixed(1)} ct</span>
+                </div>`;
+            }
+            transDiv.innerHTML = transHtml || '<span style="color: #666;">No transformers</span>';
+
+            // Consumers
+            const consDiv = document.getElementById('log-consumers');
+            let consHtml = '';
+            for (const [name, data] of Object.entries(entry.consumers || {})) {
+                const typeLabel = data.consumer_type.replace('logarithmic_', 'log-').replace('cobb_douglas', 'CD');
+                consHtml += `<div style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #333;">
+                    <span style="color: #27ae60;">${name}</span>
+                    <span style="color: #888; font-size: 0.7rem;"> (${typeLabel})</span>
+                    <span style="float: right;">${data.total_consumption.toFixed(2)} ${data.unit}</span>
+                    <br><span style="color: #888; font-size: 0.7rem;">Utility: ${data.total_utility.toFixed(1)} ct</span>
+                </div>`;
+
+                // Show tranche details if any consumption
+                if (data.tranches && data.tranches.length > 0) {
+                    consHtml += '<div style="margin-left: 10px; font-size: 0.7rem; color: #666;">';
+                    for (const tr of data.tranches) {
+                        const pct = tr.max_qty > 0 ? (tr.consumption / tr.max_qty * 100).toFixed(0) : 0;
+                        const bar = pct > 0 ? `<span style="color: #4ecca3;">▓</span>`.repeat(Math.ceil(pct / 20)) : '';
+                        consHtml += `T${tr.tranche}: ${tr.consumption.toFixed(2)}/${tr.max_qty.toFixed(1)} @ ${tr.wtp_ct.toFixed(1)}ct ${bar}<br>`;
+                    }
+                    consHtml += '</div>';
+                }
+            }
+            consDiv.innerHTML = consHtml || '<span style="color: #666;">No consumers</span>';
+
+            // Storage
+            const storDiv = document.getElementById('log-storage');
+            let storHtml = '';
+            for (const [name, data] of Object.entries(entry.storage || {})) {
+                if (data.type === 'battery') {
+                    storHtml += `<div style="margin-bottom: 6px;">
+                        <span style="color: #3498db;">${name}</span>
+                        <span style="color: #888;"> (Battery)</span>
+                        <br><span style="color: #888; font-size: 0.7rem;">
+                            Level: ${data.level_kWh.toFixed(1)}/${data.capacity_kWh} kWh (${data.level_pct}%)
+                            <br>Charge: ${data.charge_kW.toFixed(1)} kW | Discharge: ${data.discharge_kW.toFixed(1)} kW
+                        </span>
+                    </div>`;
+                } else if (data.type === 'h2_tank') {
+                    storHtml += `<div style="margin-bottom: 6px;">
+                        <span style="color: #e67e22;">${name}</span>
+                        <span style="color: #888;"> (H2 Tank)</span>
+                        <br><span style="color: #888; font-size: 0.7rem;">
+                            Level: ${data.level_kg.toFixed(1)}/${data.capacity_kg} kg (${data.level_pct}%)
+                            <br>Inject: ${data.injection_kg.toFixed(2)} kg | Withdraw: ${data.withdrawal_kg.toFixed(2)} kg
+                        </span>
+                    </div>`;
+                }
+            }
+
+            // Add excess/curtailment
+            if (entry.excess) {
+                if (entry.excess.electricity_kW > 0.01) {
+                    storHtml += `<div style="color: #e74c3c; font-size: 0.75rem;">Curtailed Elec: ${entry.excess.electricity_kW.toFixed(1)} kW</div>`;
+                }
+                if (entry.excess.hydrogen_kg > 0.01) {
+                    storHtml += `<div style="color: #e74c3c; font-size: 0.75rem;">Curtailed H2: ${entry.excess.hydrogen_kg.toFixed(2)} kg</div>`;
+                }
+            }
+
+            storDiv.innerHTML = storHtml || '<span style="color: #666;">No storage</span>';
+        }
+
+        function buildLogTable(logEntries) {
+            const thead = document.getElementById('log-table-head');
+            const tbody = document.getElementById('log-table-body');
+
+            if (!logEntries || logEntries.length === 0) {
+                tbody.innerHTML = '<tr><td>No data</td></tr>';
+                return;
+            }
+
+            // Build header
+            let headers = ['Hour'];
+            const firstEntry = logEntries[0];
+
+            // Add generator columns
+            for (const name of Object.keys(firstEntry.generators || {})) {
+                headers.push(`${name} (kW)`);
+            }
+            // Add transformer columns
+            for (const name of Object.keys(firstEntry.transformers || {})) {
+                headers.push(`${name} In`, `${name} Out`);
+            }
+            // Add consumer columns
+            for (const name of Object.keys(firstEntry.consumers || {})) {
+                headers.push(`${name}`);
+            }
+            // Add storage columns
+            for (const name of Object.keys(firstEntry.storage || {})) {
+                headers.push(`${name} Lvl`);
+            }
+
+            thead.innerHTML = '<tr>' + headers.map(h =>
+                `<th style="padding: 6px; text-align: left; border-bottom: 1px solid #333; color: #4ecca3;">${h}</th>`
+            ).join('') + '</tr>';
+
+            // Build rows
+            let rowsHtml = '';
+            for (const entry of logEntries) {
+                let row = `<td style="padding: 4px; border-bottom: 1px solid #222;">${entry.hour}</td>`;
+
+                for (const [name, data] of Object.entries(entry.generators || {})) {
+                    const val = data.production_kW !== undefined ? data.production_kW : data.supply_kW;
+                    row += `<td style="padding: 4px; border-bottom: 1px solid #222;">${val.toFixed(1)}</td>`;
+                }
+                for (const [name, data] of Object.entries(entry.transformers || {})) {
+                    row += `<td style="padding: 4px; border-bottom: 1px solid #222;">${data.input_kW.toFixed(1)}</td>`;
+                    row += `<td style="padding: 4px; border-bottom: 1px solid #222;">${data.output_kg.toFixed(2)}</td>`;
+                }
+                for (const [name, data] of Object.entries(entry.consumers || {})) {
+                    row += `<td style="padding: 4px; border-bottom: 1px solid #222;">${data.total_consumption.toFixed(2)}</td>`;
+                }
+                for (const [name, data] of Object.entries(entry.storage || {})) {
+                    const lvl = data.level_kWh !== undefined ? data.level_kWh : data.level_kg;
+                    row += `<td style="padding: 4px; border-bottom: 1px solid #222;">${lvl.toFixed(1)}</td>`;
+                }
+
+                rowsHtml += `<tr>${row}</tr>`;
+            }
+            tbody.innerHTML = rowsHtml;
+        }
+
+        function exportLogCSV() {
+            if (!detailedLogData || !detailedLogData.detailed_log) {
+                alert('No log data to export. Run detailed simulation first.');
+                return;
+            }
+
+            const logEntries = detailedLogData.detailed_log;
+            const firstEntry = logEntries[0];
+
+            // Build CSV header
+            let headers = ['Hour'];
+            for (const name of Object.keys(firstEntry.generators || {})) {
+                headers.push(`${name}_kW`, `${name}_cost_ct`);
+            }
+            for (const name of Object.keys(firstEntry.transformers || {})) {
+                headers.push(`${name}_input_kW`, `${name}_output_kg`, `${name}_cost_ct`);
+            }
+            for (const name of Object.keys(firstEntry.consumers || {})) {
+                headers.push(`${name}_consumption`, `${name}_utility_ct`);
+            }
+            for (const name of Object.keys(firstEntry.storage || {})) {
+                headers.push(`${name}_level`, `${name}_in`, `${name}_out`);
+            }
+            headers.push('Excess_Elec_kW', 'Excess_H2_kg');
+
+            let csv = headers.join(',') + '\n';
+
+            // Build CSV rows
+            for (const entry of logEntries) {
+                let row = [entry.hour];
+
+                for (const [name, data] of Object.entries(entry.generators || {})) {
+                    const val = data.production_kW !== undefined ? data.production_kW : data.supply_kW;
+                    row.push(val.toFixed(2), data.cost_ct.toFixed(2));
+                }
+                for (const [name, data] of Object.entries(entry.transformers || {})) {
+                    row.push(data.input_kW.toFixed(2), data.output_kg.toFixed(3), data.cost_ct.toFixed(2));
+                }
+                for (const [name, data] of Object.entries(entry.consumers || {})) {
+                    row.push(data.total_consumption.toFixed(3), data.total_utility.toFixed(2));
+                }
+                for (const [name, data] of Object.entries(entry.storage || {})) {
+                    const lvl = data.level_kWh !== undefined ? data.level_kWh : data.level_kg;
+                    const inFlow = data.charge_kW !== undefined ? data.charge_kW : data.injection_kg;
+                    const outFlow = data.discharge_kW !== undefined ? data.discharge_kW : data.withdrawal_kg;
+                    row.push(lvl.toFixed(2), inFlow.toFixed(2), outFlow.toFixed(2));
+                }
+                row.push(
+                    (entry.excess?.electricity_kW || 0).toFixed(2),
+                    (entry.excess?.hydrogen_kg || 0).toFixed(3)
+                );
+
+                csv += row.join(',') + '\n';
+            }
+
+            // Download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulation_log_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         function updateResults(data) {
@@ -1318,52 +2254,6 @@
                     data.price_analysis.hydrogen.marginal_cost.toFixed(2) + ' ct/kWh';
             }
 
-            // Tranche utilization tables
-            if (data.price_analysis) {
-                updateTrancheTable('charlie-tranches-table', data.price_analysis.hydrogen.consumer_tranches, 'kg');
-                updateTrancheTable('delta-tranches-table', data.price_analysis.electricity.consumer_tranches, 'kWh');
-
-                // Echo tranches
-                const echoHeader = document.getElementById('echo-tranches-header');
-                const echoTable = document.getElementById('echo-tranches-table');
-                if (includeEcho && data.price_analysis.echo && data.price_analysis.echo.bundles) {
-                    echoHeader.style.display = 'flex';
-                    echoTable.style.display = 'table';
-                    updateTrancheTable('echo-tranches-table', data.price_analysis.echo.bundles, 'bundles');
-                } else {
-                    echoHeader.style.display = 'none';
-                    echoTable.style.display = 'none';
-                }
-            }
-        }
-
-        function updateTrancheTable(tableId, tranches, unit) {
-            const table = document.getElementById(tableId);
-            table.innerHTML = '<tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>';
-
-            if (!tranches || tranches.length === 0) {
-                table.innerHTML += '<tr><td colspan="4" style="color:#666">No data</td></tr>';
-                return;
-            }
-
-            tranches.forEach(t => {
-                const row = document.createElement('tr');
-                // Handle both willingness_to_pay and wtp field names
-                const wtp = t.willingness_to_pay || t.wtp || 0;
-                const consumed = t.consumed || 0;
-                const utilization = t.utilization || 0;
-                row.innerHTML = `
-                    <td>T${t.tranche}</td>
-                    <td>${wtp.toFixed(1)} ct</td>
-                    <td>${consumed.toFixed(1)} ${unit}</td>
-                    <td class="utilization">
-                        <div class="utilization-bar">
-                            <div class="utilization-fill" style="width:${Math.min(100, utilization)}%"></div>
-                        </div>
-                    </td>
-                `;
-                table.appendChild(row);
-            });
         }
 
         // Blender functions
@@ -1424,7 +2314,9 @@
             delta: '#3498db',      // Blue - Delta consumption
             charlie: '#9b59b6',    // Purple - Charlie consumption
             hydrogen: '#1abc9c',   // Teal - Hydrogen
-            echo: '#e67e22'        // Orange - Echo consumption
+            echo: '#e67e22',       // Orange - Echo consumption
+            battery: '#00bcd4',    // Cyan - Battery storage
+            h2storage: '#ff9800'   // Amber - H2 storage
         };
 
         const chartLayout = {
@@ -1464,6 +2356,20 @@
                 ...chartLayout,
                 title: { text: 'Energy Balance Over Time', font: { size: 14, color: '#4ecca3' } },
                 yaxis: { ...chartLayout.yaxis, title: 'Energy (kWh)' }
+            }, { responsive: true });
+
+            // Battery storage chart placeholder
+            Plotly.newPlot('chart-battery', [], {
+                ...chartLayout,
+                title: { text: 'Battery Storage', font: { size: 14, color: '#00bcd4' } },
+                yaxis: { ...chartLayout.yaxis, title: 'State of Charge (kWh)' }
+            }, { responsive: true });
+
+            // H2 storage chart placeholder
+            Plotly.newPlot('chart-h2storage', [], {
+                ...chartLayout,
+                title: { text: 'H2 Storage', font: { size: 14, color: '#ff9800' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Stored H2 (kg)' }
             }, { responsive: true });
         }
 
@@ -1688,6 +2594,151 @@
                 yaxis: { ...chartLayout.yaxis, title: 'Power (kW)', zeroline: true, zerolinewidth: 2 },
                 barmode: 'relative'
             });
+
+            // Storage charts
+            const storageSection = document.getElementById('storage-charts-section');
+            const batteryTraces = [];
+            const h2StorageTraces = [];
+            // Battery colors with fill variants
+            const storageColors = [
+                { line: '#00bcd4', fill: 'rgba(0, 188, 212, 0.3)' },
+                { line: '#26c6da', fill: 'rgba(38, 198, 218, 0.3)' },
+                { line: '#4dd0e1', fill: 'rgba(77, 208, 225, 0.3)' },
+                { line: '#80deea', fill: 'rgba(128, 222, 234, 0.3)' }
+            ];
+            // H2 storage colors with fill variants
+            const h2Colors = [
+                { line: '#ff9800', fill: 'rgba(255, 152, 0, 0.3)' },
+                { line: '#ffa726', fill: 'rgba(255, 167, 38, 0.3)' },
+                { line: '#ffb74d', fill: 'rgba(255, 183, 77, 0.3)' },
+                { line: '#ffcc80', fill: 'rgba(255, 204, 128, 0.3)' }
+            ];
+
+            // Find all battery storage flows
+            let batteryCount = 0;
+            let h2Count = 0;
+
+            Object.keys(flows).forEach(key => {
+                if (key.endsWith('_storage')) {
+                    const name = key.replace('_storage', '');
+                    const flowData = flows[key];
+
+                    // Try to extract storage level data
+                    let storageLevel = [];
+                    if (flowData && flowData.length > 0) {
+                        // Handle DataFrame-like structure or simple array
+                        if (typeof flowData[0] === 'object' && !Array.isArray(flowData[0])) {
+                            // It's an array of objects, try to find the storage level column
+                            storageLevel = flowData.map(row => {
+                                // Look for columns containing 'storage_content' or similar
+                                for (const col of Object.keys(row)) {
+                                    if (col.includes('storage_content') || col.includes('level')) {
+                                        return row[col] || 0;
+                                    }
+                                }
+                                // Fall back to first numeric value
+                                for (const col of Object.keys(row)) {
+                                    if (typeof row[col] === 'number') return row[col];
+                                }
+                                return 0;
+                            });
+                        } else if (Array.isArray(flowData[0])) {
+                            // Nested array
+                            storageLevel = flowData.map(v => v[0] || 0);
+                        } else {
+                            // Simple array
+                            storageLevel = flowData;
+                        }
+                    }
+
+                    if (storageLevel.length === 0) {
+                        storageLevel = new Array(periods).fill(0);
+                    }
+
+                    // Determine if it's battery or H2 storage based on node registry
+                    const isBattery = nodeRegistry.batteries.some(b => b.name === name);
+                    const isH2 = nodeRegistry.h2_storage.some(h => h.name === name);
+
+                    if (isBattery) {
+                        const colorSet = storageColors[batteryCount % storageColors.length];
+                        batteryTraces.push({
+                            x: hours,
+                            y: storageLevel,
+                            name: name,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            fill: 'tozeroy',
+                            line: { color: colorSet.line, width: 2 },
+                            fillcolor: colorSet.fill,
+                            marker: { size: 4 }
+                        });
+                        batteryCount++;
+                    } else if (isH2) {
+                        const colorSet = h2Colors[h2Count % h2Colors.length];
+                        h2StorageTraces.push({
+                            x: hours,
+                            y: storageLevel,
+                            name: name,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            fill: 'tozeroy',
+                            line: { color: colorSet.line, width: 2 },
+                            fillcolor: colorSet.fill,
+                            marker: { size: 4 }
+                        });
+                        h2Count++;
+                    }
+                }
+            });
+
+            // Show/hide storage section based on whether we have storage data
+            if (batteryTraces.length > 0 || h2StorageTraces.length > 0) {
+                storageSection.style.display = 'block';
+
+                if (batteryTraces.length > 0) {
+                    Plotly.react('chart-battery', batteryTraces, {
+                        ...chartLayout,
+                        title: { text: 'Battery Storage State', font: { size: 14, color: '#00bcd4' } },
+                        yaxis: { ...chartLayout.yaxis, title: 'State of Charge (kWh)' }
+                    });
+                } else {
+                    Plotly.react('chart-battery', [{
+                        x: hours,
+                        y: new Array(periods).fill(0),
+                        name: 'No batteries',
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#666', width: 1, dash: 'dot' }
+                    }], {
+                        ...chartLayout,
+                        title: { text: 'Battery Storage (None configured)', font: { size: 14, color: '#666' } },
+                        yaxis: { ...chartLayout.yaxis, title: 'State of Charge (kWh)' }
+                    });
+                }
+
+                if (h2StorageTraces.length > 0) {
+                    Plotly.react('chart-h2storage', h2StorageTraces, {
+                        ...chartLayout,
+                        title: { text: 'H2 Storage State', font: { size: 14, color: '#ff9800' } },
+                        yaxis: { ...chartLayout.yaxis, title: 'Stored H2 (kg)' }
+                    });
+                } else {
+                    Plotly.react('chart-h2storage', [{
+                        x: hours,
+                        y: new Array(periods).fill(0),
+                        name: 'No H2 storage',
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#666', width: 1, dash: 'dot' }
+                    }], {
+                        ...chartLayout,
+                        title: { text: 'H2 Storage (None configured)', font: { size: 14, color: '#666' } },
+                        yaxis: { ...chartLayout.yaxis, title: 'Stored H2 (kg)' }
+                    });
+                }
+            } else {
+                storageSection.style.display = 'none';
+            }
         }
 
         // Initialize charts on page load
@@ -1708,13 +2759,92 @@
         let currentNodeType = null;
         let editingNodeName = null;
 
+        // NATO phonetic alphabet for auto-naming nodes
+        const NATO_ALPHABET = [
+            'Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel',
+            'India', 'Juliet', 'Kilo', 'Lima', 'Mike', 'November', 'Oscar', 'Papa',
+            'Quebec', 'Romeo', 'Sierra', 'Tango', 'Uniform', 'Victor', 'Whiskey',
+            'Xray', 'Yankee', 'Zulu'
+        ];
+
+        // Get all used node names across all categories
+        function getAllUsedNames() {
+            const names = new Set();
+            for (const cat of ['generators', 'transformers', 'consumers', 'batteries', 'h2_storage']) {
+                for (const node of (nodeRegistry[cat] || [])) {
+                    names.add(node.name);
+                }
+            }
+            return names;
+        }
+
+        // Get first unused NATO alphabet name
+        function getNextNatoName() {
+            const usedNames = getAllUsedNames();
+            for (const name of NATO_ALPHABET) {
+                if (!usedNames.has(name)) {
+                    return name;
+                }
+            }
+            // Fallback if all NATO names are used
+            return `Node${usedNames.size + 1}`;
+        }
+
+        // Preset Management Functions
+        async function loadPresetList() {
+            try {
+                const res = await fetch(`${API_BASE}/api/presets`);
+                const presets = await res.json();
+                const select = document.getElementById('preset-select');
+                select.innerHTML = '<option value="">-- Select Preset --</option>' +
+                    presets.map(p => `<option value="${p.name}">${p.name} (${p.generators}G/${p.transformers}T/${p.consumers}C${p.batteries ? '/' + p.batteries + 'B' : ''}${p.h2_storage ? '/' + p.h2_storage + 'H' : ''})</option>`).join('');
+            } catch (e) {
+                console.error('Failed to load presets:', e);
+            }
+        }
+
+        async function loadSelectedPreset() {
+            const select = document.getElementById('preset-select');
+            const presetName = select.value;
+            if (!presetName) {
+                alert('Please select a preset first');
+                return;
+            }
+
+            if (!confirm(`Load preset "${presetName}"? This will replace all current nodes and connections.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/presets/${presetName}/load`, {
+                    method: 'POST'
+                });
+                const result = await res.json();
+                if (result.status === 'ok') {
+                    // Reload everything
+                    await loadConnections();
+                    await loadNodes();
+                    showStatus('node-status', `Loaded preset: ${presetName}`, 'success');
+                } else {
+                    showStatus('node-status', result.message || 'Failed to load preset', 'error');
+                }
+            } catch (e) {
+                console.error('Failed to load preset:', e);
+                showStatus('node-status', 'Failed to load preset', 'error');
+            }
+        }
+
         // Load nodes from backend
         async function loadNodes() {
             try {
                 const res = await fetch(`${API_BASE}/api/nodes`);
                 nodeRegistry = await res.json();
                 renderNodeLists();
-                rebuildNodesAndEdges();
+                renderConsumerUtilityForms();
+                // Always fetch fresh connections from backend (they may have changed when nodes were added/removed)
+                const connRes = await fetch(`${API_BASE}/api/connections`);
+                connections = await connRes.json();
+                rebuildNodesAndEdgesWithConnections();
             } catch (e) {
                 console.error('Failed to load nodes:', e);
             }
@@ -1727,7 +2857,7 @@
             genList.innerHTML = nodeRegistry.generators.map(g => `
                 <div class="node-item">
                     <span class="node-name">${g.name}</span>
-                    <span class="node-info">${g.capacity} kW @ ${g.cost} ct/kWh (${g.profile_type || 'solar'})</span>
+                    <span class="node-type">${g.profile_type || 'solar'}</span>
                     <button class="btn-small btn-edit" onclick="editNode('generator', '${g.name}')">Edit</button>
                     <button class="btn-small btn-delete" onclick="deleteNode('generator', '${g.name}')">X</button>
                 </div>
@@ -1739,7 +2869,7 @@
             transList.innerHTML = nodeRegistry.transformers.map(t => `
                 <div class="node-item">
                     <span class="node-name">${t.name}</span>
-                    <span class="node-info">${(t.efficiency * 100).toFixed(0)}% eff @ ${t.cost} ct/kWh</span>
+                    <span class="node-type">${(t.efficiency * 100).toFixed(0)}%</span>
                     <button class="btn-small btn-edit" onclick="editNode('transformer', '${t.name}')">Edit</button>
                     <button class="btn-small btn-delete" onclick="deleteNode('transformer', '${t.name}')">X</button>
                 </div>
@@ -1750,11 +2880,11 @@
             const consList = document.getElementById('consumers-list');
             consList.innerHTML = nodeRegistry.consumers.map(c => {
                 const typeShort = c.consumer_type === 'cobb_douglas' ? 'C-D' :
-                                  c.consumer_type.includes('elec') ? 'Log-E' : 'Log-H';
+                                  c.consumer_type.includes('elec') ? 'E' : 'H2';
                 return `
                 <div class="node-item">
                     <span class="node-name">${c.name}</span>
-                    <span class="node-info">${typeShort} (${c.carrier})</span>
+                    <span class="node-type">${typeShort}</span>
                     <button class="btn-small btn-edit" onclick="editNode('consumer', '${c.name}')">Edit</button>
                     <button class="btn-small btn-delete" onclick="deleteNode('consumer', '${c.name}')">X</button>
                 </div>
@@ -1766,7 +2896,7 @@
             battList.innerHTML = (nodeRegistry.batteries || []).map(b => `
                 <div class="node-item">
                     <span class="node-name">${b.name}</span>
-                    <span class="node-info">${b.capacity} kWh @ ${b.cost} ct</span>
+                    <span class="node-type">${b.capacity}kWh</span>
                     <button class="btn-small btn-edit" onclick="editNode('battery', '${b.name}')">Edit</button>
                     <button class="btn-small btn-delete" onclick="deleteNode('battery', '${b.name}')">X</button>
                 </div>
@@ -1778,12 +2908,88 @@
             h2sList.innerHTML = (nodeRegistry.h2_storage || []).map(h => `
                 <div class="node-item">
                     <span class="node-name">${h.name}</span>
-                    <span class="node-info">${h.capacity} kg @ ${h.cost} ct</span>
+                    <span class="node-type">${h.capacity}kg</span>
                     <button class="btn-small btn-edit" onclick="editNode('h2_storage', '${h.name}')">Edit</button>
                     <button class="btn-small btn-delete" onclick="deleteNode('h2_storage', '${h.name}')">X</button>
                 </div>
             `).join('');
             document.getElementById('h2s-count').textContent = (nodeRegistry.h2_storage || []).length;
+        }
+
+        // Render consumer utility parameter forms dynamically
+        function renderConsumerUtilityForms() {
+            const container = document.getElementById('consumer-utility-container');
+            if (!nodeRegistry || !nodeRegistry.consumers || nodeRegistry.consumers.length === 0) {
+                container.innerHTML = '<p style="color:#666">No consumers defined</p>';
+                return;
+            }
+
+            let html = '';
+            nodeRegistry.consumers.forEach(c => {
+                const name = c.name.toLowerCase();
+                const carrierLabel = c.carrier === 'hydrogen' ? 'H2' :
+                                    c.carrier === 'electricity' ? 'Elec' : 'Both';
+
+                if (c.consumer_type === 'cobb_douglas') {
+                    html += `
+                        <h3 style="display:flex;align-items:center;gap:10px;">
+                            ${c.name} - ${carrierLabel} (Cobb-Douglas)
+                        </h3>
+                        <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(h,e) = A × h<sup>α</sup> × e<sup>β</sup></p>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>Scale (A)</label>
+                                <input type="number" id="${name}_A" value="${c.cd_A || 15}" min="0.1" step="1">
+                            </div>
+                            <div class="param-group">
+                                <label>H2 exp (α)</label>
+                                <input type="number" id="${name}_alpha" value="${c.cd_alpha || 0.4}" min="0.01" max="1" step="0.05">
+                            </div>
+                            <div class="param-group">
+                                <label>Elec exp (β)</label>
+                                <input type="number" id="${name}_beta" value="${c.cd_beta || 0.6}" min="0.01" max="1" step="0.05">
+                            </div>
+                        </div>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>H2/bundle (kg)</label>
+                                <input type="number" id="${name}_h_per_bundle" value="${c.cd_h_per_bundle || 1}" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Elec/bundle (kWh)</label>
+                                <input type="number" id="${name}_e_per_bundle" value="${c.cd_e_per_bundle || 3}" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Max bundles/h</label>
+                                <input type="number" id="${name}_max_bundles" value="${c.cd_max_bundles || 15}" min="1" step="1">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Logarithmic utility
+                    const unit = c.carrier === 'hydrogen' ? 'kg/h' : 'kWh/h';
+                    html += `
+                        <h3>${c.name} - ${carrierLabel} (Logarithmic)</h3>
+                        <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>Scale (a)</label>
+                                <input type="number" id="${name}_scale" value="${c.log_scale || 30}" min="1" step="1">
+                            </div>
+                            <div class="param-group">
+                                <label>Shape (b)</label>
+                                <input type="number" id="${name}_shape" value="${c.log_shape || 5}" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Max Qty (${unit})</label>
+                                <input type="number" id="${name}_max_quantity" value="${c.log_max_quantity || 25}" min="1" step="5">
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
         }
 
         // Rebuild nodes and edges objects from registry
@@ -1883,8 +3089,8 @@
             };
             document.getElementById('modal-title').textContent = titles[nodeType];
 
-            // Reset form
-            document.getElementById('node-name').value = '';
+            // Reset form with auto-generated NATO name
+            document.getElementById('node-name').value = getNextNatoName();
             document.getElementById('node-name').disabled = false;
 
             // Show/hide type-specific fields
@@ -2026,6 +3232,10 @@
                 };
             }
 
+            // Save these before closeNodeModal() clears them
+            const savedNodeType = currentNodeType;
+            const isEditing = editingNodeName !== null;
+
             try {
                 const res = await fetch(`${API_BASE}${endpoint}`, {
                     method: method,
@@ -2037,7 +3247,7 @@
                 if (result.status === 'ok') {
                     closeNodeModal();
                     loadNodes();
-                    showNodeStatus(`${currentNodeType} ${editingNodeName ? 'updated' : 'added'} successfully!`, 'success');
+                    showNodeStatus(`${savedNodeType} "${name}" ${isEditing ? 'updated' : 'added'} successfully!`, 'success');
                 } else {
                     showNodeStatus('Error: ' + result.message, 'error');
                 }
@@ -2123,8 +3333,6 @@
 
         // Delete node
         async function deleteNode(nodeType, name) {
-            if (!confirm(`Delete ${nodeType} "${name}"?`)) return;
-
             const collections = {
                 generator: 'generators',
                 transformer: 'transformers',
@@ -2158,10 +3366,449 @@
             setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
         }
 
-        // Update initialization to load nodes
+        // =========================================
+        // Connection Management Functions
+        // =========================================
+
+        let connections = [];
+
+        // Load connections from backend
+        async function loadConnections() {
+            try {
+                const res = await fetch(`${API_BASE}/api/connections`);
+                connections = await res.json();
+                // Rebuild edges with connection info
+                if (Object.keys(nodes).length > 0) {
+                    rebuildNodesAndEdgesWithConnections();
+                }
+            } catch (e) {
+                console.error('Failed to load connections:', e);
+            }
+        }
+
+        // Toggle connection (kept for compatibility)
+        async function toggleConnection(source, target, carrier) {
+            try {
+                const res = await fetch(`${API_BASE}/api/connections/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source, target, carrier })
+                });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    // Update local state
+                    const conn = connections.find(c =>
+                        c.source === source && c.target === target && c.carrier === carrier
+                    );
+                    if (conn) conn.enabled = result.connection.enabled;
+                    rebuildNodesAndEdgesWithConnections();
+                    showNetworkStatus(result.message, 'success');
+                } else {
+                    showNetworkStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNetworkStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Delete connection (called when clicking on edge)
+        async function deleteConnection(source, target, carrier) {
+            try {
+                const res = await fetch(`${API_BASE}/api/connections`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source, target, carrier })
+                });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    // Remove from local state
+                    const idx = connections.findIndex(c =>
+                        c.source === source && c.target === target && c.carrier === carrier
+                    );
+                    if (idx >= 0) connections.splice(idx, 1);
+                    rebuildNodesAndEdgesWithConnections();
+                    showNetworkStatus(`Deleted: ${source} → ${target}`, 'success');
+                } else {
+                    showNetworkStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNetworkStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Regenerate all connections
+        async function regenerateConnections() {
+            if (!confirm('This will regenerate all connections based on node types. Continue?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/connections/regenerate`, { method: 'POST' });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    connections = result.connections;
+                    rebuildNodesAndEdgesWithConnections();
+                    showNetworkStatus(result.message, 'success');
+                } else {
+                    showNetworkStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNetworkStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Rebuild nodes and edges using explicit connections
+        // Preserves current positions for existing nodes
+        function rebuildNodesAndEdgesWithConnections() {
+            const oldNodes = { ...nodes };  // Save current positions
+            nodes = {};
+            edges.length = 0;
+
+            // Helper to get position - prefer current position, then registry, then default
+            function getNodePosition(name, registryPos, defaultPos) {
+                if (oldNodes[name]) {
+                    return { x: oldNodes[name].x, y: oldNodes[name].y };
+                }
+                const pos = registryPos || defaultPos;
+                return {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6
+                };
+            }
+
+            // Add all nodes from registry
+            nodeRegistry.generators.forEach((g, i) => {
+                const pos = getNodePosition(g.name, g.position, [0, 2, 0]);
+                nodes[g.name] = { ...pos, type: 'producer' };
+            });
+
+            nodeRegistry.transformers.forEach((t, i) => {
+                const pos = getNodePosition(t.name, t.position, [-2, 0, 0]);
+                nodes[t.name] = { ...pos, type: 'converter' };
+            });
+
+            nodeRegistry.consumers.forEach((c, i) => {
+                const pos = getNodePosition(c.name, c.position, [0, -2, 0]);
+                nodes[c.name] = { ...pos, type: 'consumer' };
+            });
+
+            (nodeRegistry.batteries || []).forEach((b, i) => {
+                const pos = getNodePosition(b.name, b.position, [3, 0, 0]);
+                nodes[b.name] = { ...pos, type: 'storage' };
+            });
+
+            (nodeRegistry.h2_storage || []).forEach((h, i) => {
+                const pos = getNodePosition(h.name, h.position, [-3, -1, 0]);
+                nodes[h.name] = { ...pos, type: 'storage' };
+            });
+
+            // Use connections (both enabled and disabled for visualization)
+            connections.forEach(conn => {
+                edges.push({
+                    source: conn.source,
+                    target: conn.target,
+                    carrier: conn.carrier,
+                    enabled: conn.enabled
+                });
+            });
+
+            renderNetwork();
+        }
+
+        // =========================================
+        // Zoom and Fullscreen Functions
+        // =========================================
+
+        let currentZoom = 1.0;
+        let panX = 0;  // Pan offset in normalized coordinates
+        let panY = 0;
+        const minZoom = 0.25;
+        const maxZoom = 4.0;
+        const zoomStep = 0.25;
+
+        function zoomIn() {
+            zoomAtPoint(currentZoom + zoomStep, 0.5, 0.5);
+        }
+
+        function zoomOut() {
+            zoomAtPoint(currentZoom - zoomStep, 0.5, 0.5);
+        }
+
+        // Zoom toward a specific point (in normalized 0-1 coordinates relative to canvas)
+        function zoomAtPoint(newZoom, normMouseX, normMouseY) {
+            newZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+            if (newZoom === currentZoom) return;
+
+            // Convert mouse position from screen-normalized to world coordinates
+            // Screen formula: screenNorm = (worldNorm - 0.5 - panX) * zoom + 0.5
+            // So: worldNorm = (screenNorm - 0.5) / zoom + 0.5 + panX
+            const worldX = (normMouseX - 0.5) / currentZoom + 0.5 + panX;
+            const worldY = (normMouseY - 0.5) / currentZoom + 0.5 + panY;
+
+            // After zoom change, we want the same world point under the mouse
+            // New: screenNorm = (worldNorm - 0.5 - newPanX) * newZoom + 0.5
+            // We want screenNorm to stay the same, so:
+            // normMouseX = (worldX - 0.5 - newPanX) * newZoom + 0.5
+            // Solve for newPanX:
+            // newPanX = worldX - 0.5 - (normMouseX - 0.5) / newZoom
+            panX = worldX - 0.5 - (normMouseX - 0.5) / newZoom;
+            panY = worldY - 0.5 - (normMouseY - 0.5) / newZoom;
+
+            currentZoom = newZoom;
+            applyZoom();
+        }
+
+        function resetZoom() {
+            currentZoom = 1.0;
+            panX = 0;
+            panY = 0;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const canvas = document.getElementById('network-canvas');
+
+            // No CSS transforms - all handled by coordinate transformation in renderNetwork
+            canvas.style.transform = 'none';
+
+            document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+
+            // Re-render with zoom-adjusted positions
+            renderNetwork();
+        }
+
+        let isFullscreen = false;
+
+        function toggleFullscreen() {
+            const card = document.getElementById('network-card');
+            isFullscreen = !isFullscreen;
+
+            if (isFullscreen) {
+                // Create overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'fullscreen-overlay';
+                overlay.id = 'fullscreen-overlay';
+                document.body.appendChild(overlay);
+
+                card.classList.add('fullscreen');
+                document.body.style.overflow = 'hidden';
+            } else {
+                card.classList.remove('fullscreen');
+                document.body.style.overflow = '';
+
+                // Remove overlay
+                const overlay = document.getElementById('fullscreen-overlay');
+                if (overlay) overlay.remove();
+            }
+
+            // Re-render to adjust to new size
+            setTimeout(renderNetwork, 100);
+        }
+
+        // Handle Escape key to exit fullscreen
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isFullscreen) {
+                toggleFullscreen();
+            }
+        });
+
+        // Mouse wheel zoom - zooms toward mouse position
+        // Middle-mouse button panning
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let panStartPanX = 0;
+        let panStartPanY = 0;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const wrapper = document.getElementById('network-canvas-wrapper');
+
+            // Wheel zoom
+            wrapper.addEventListener('wheel', (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    const rect = wrapper.getBoundingClientRect();
+                    // Calculate normalized mouse position (0-1) within the canvas
+                    const normMouseX = (e.clientX - rect.left) / rect.width;
+                    const normMouseY = (e.clientY - rect.top) / rect.height;
+
+                    // Smoother zoom with smaller steps for wheel
+                    const wheelZoomStep = 0.1;
+                    const newZoom = e.deltaY < 0
+                        ? currentZoom + wheelZoomStep
+                        : currentZoom - wheelZoomStep;
+
+                    zoomAtPoint(newZoom, normMouseX, normMouseY);
+                }
+            }, { passive: false });
+
+            // Middle-mouse button pan (or right-click)
+            wrapper.addEventListener('mousedown', (e) => {
+                if (e.button === 1 || (e.button === 2 && e.shiftKey)) {  // Middle button or Shift+right-click
+                    e.preventDefault();
+                    isPanning = true;
+                    panStartX = e.clientX;
+                    panStartY = e.clientY;
+                    panStartPanX = panX;
+                    panStartPanY = panY;
+                    wrapper.style.cursor = 'grabbing';
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isPanning) return;
+                const rect = wrapper.getBoundingClientRect();
+                // Convert pixel delta to normalized coordinate delta
+                const deltaX = (e.clientX - panStartX) / rect.width / currentZoom;
+                const deltaY = (e.clientY - panStartY) / rect.height / currentZoom;
+                panX = panStartPanX - deltaX;
+                panY = panStartPanY - deltaY;
+                renderNetwork();
+            });
+
+            document.addEventListener('mouseup', (e) => {
+                if (isPanning) {
+                    isPanning = false;
+                    wrapper.style.cursor = '';
+                }
+            });
+
+            // Prevent context menu on right-click in canvas
+            wrapper.addEventListener('contextmenu', (e) => {
+                if (e.shiftKey) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // =========================================
+        // Save/Load Layout Functions
+        // =========================================
+
+        function saveLayout() {
+            // Update positions in nodeRegistry from current visual state
+            Object.entries(nodes).forEach(([name, node]) => {
+                const pos = [(node.x * 6) - 3, ((1 - node.y) * 6) - 3, 0];
+                // Find and update position in the appropriate category
+                for (const cat of ['generators', 'transformers', 'consumers', 'batteries', 'h2_storage']) {
+                    const item = (nodeRegistry[cat] || []).find(n => n.name === name);
+                    if (item) {
+                        item.position = pos;
+                        break;
+                    }
+                }
+            });
+
+            // Build complete registry export with connections
+            const exportData = {
+                ...nodeRegistry,
+                connections: connections
+            };
+
+            // Create and download file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `node-registry-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showNetworkStatus('Node registry saved!', 'success');
+        }
+
+        function loadLayoutFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    // Check if this is a full registry (has generators/transformers/consumers)
+                    // or legacy positions-only format
+                    if (data.generators || data.transformers || data.consumers) {
+                        // Full registry format - update everything
+                        nodeRegistry = {
+                            generators: data.generators || [],
+                            transformers: data.transformers || [],
+                            consumers: data.consumers || [],
+                            batteries: data.batteries || [],
+                            h2_storage: data.h2_storage || []
+                        };
+
+                        if (data.connections) {
+                            connections = data.connections;
+                        }
+
+                        // Save to server
+                        await fetch(`${API_BASE}/api/nodes`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(nodeRegistry)
+                        });
+
+                        if (data.connections) {
+                            await fetch(`${API_BASE}/api/connections`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(connections)
+                            });
+                        }
+
+                        // Rebuild UI
+                        renderNodeLists();
+                        renderConsumerUtilityForms();
+                        rebuildNodesAndEdgesWithConnections();
+                        renderNetwork();
+                        renderConnectionsList();
+
+                        const nodeCount = nodeRegistry.generators.length +
+                                         nodeRegistry.transformers.length +
+                                         nodeRegistry.consumers.length +
+                                         (nodeRegistry.batteries || []).length +
+                                         (nodeRegistry.h2_storage || []).length;
+                        showNetworkStatus(`Loaded registry: ${nodeCount} nodes, ${connections.length} connections`, 'success');
+                    } else {
+                        // Legacy positions-only format
+                        const positions = data.positions || data;
+                        Object.entries(positions).forEach(([name, pos]) => {
+                            if (nodes[name] && Array.isArray(pos)) {
+                                nodes[name].x = (pos[0] + 3) / 6;
+                                nodes[name].y = 1 - (pos[1] + 3) / 6;
+                            }
+                        });
+                        await updateNetworkPositions();
+                        renderNetwork();
+                        showNetworkStatus(`Loaded layout with ${Object.keys(positions).length} positions`, 'success');
+                    }
+                } catch (err) {
+                    showNetworkStatus('Error loading registry: ' + err.message, 'error');
+                }
+
+                // Reset file input
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function showNetworkStatus(message, type) {
+            const status = document.getElementById('network-status');
+            status.className = 'status ' + type;
+            status.textContent = message;
+            setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
+        }
+
+        // Update initialization to load nodes and connections
         document.addEventListener('DOMContentLoaded', () => {
             loadConfig();
-            loadNodes();  // Load dynamic nodes
+            loadPresetList();
+            loadNodes();
+            loadConnections();
             renderNetwork();
         });
     </script>

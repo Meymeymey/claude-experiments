@@ -379,20 +379,72 @@
         <nav class="toc">
             <h3>Table of Contents</h3>
             <ul>
-                <li><a href="#architecture">1. System Architecture</a></li>
-                <li><a href="#libraries">2. Libraries & Technologies</a></li>
-                <li><a href="#dynamic-nodes">3. Dynamic Node Management</a></li>
-                <li><a href="#economic-model">4. Economic Model</a></li>
-                <li><a href="#optimization">5. Optimization Process</a></li>
-                <li><a href="#data-flow">6. Data Flow</a></li>
-                <li><a href="#api">7. API Reference</a></li>
-                <li><a href="#blender">8. Blender Visualization</a></li>
+                <li><a href="#motivation">1. Project Motivation</a></li>
+                <li><a href="#architecture">2. System Architecture</a></li>
+                <li><a href="#libraries">3. Libraries & Technologies</a></li>
+                <li><a href="#dynamic-nodes">4. Dynamic Node Management</a></li>
+                <li><a href="#economic-model">5. Economic Model</a></li>
+                <li><a href="#optimization">6. Optimization Process</a></li>
+                <li><a href="#data-flow">7. Data Flow</a></li>
+                <li><a href="#api">8. API Reference</a></li>
+                <li><a href="#blender">9. Blender Visualization</a></li>
+                <li><a href="#future">10. Future Directions</a></li>
             </ul>
         </nav>
 
-        <!-- Section 1: Architecture -->
+        <!-- Section 1: Project Motivation -->
+        <section id="motivation" class="section">
+            <h2>1. Project Motivation</h2>
+
+            <h3>The Data Problem</h3>
+            <p>Real-world hydrogen and electricity data is extremely difficult to obtain. These systems are classified as <strong>critical infrastructure</strong>, which means operational data, pricing structures, and flow patterns are often proprietary or restricted for security reasons.</p>
+
+            <p>This creates a significant barrier for researchers, students, and developers who want to understand hydrogen economics, grid integration challenges, or energy system optimization.</p>
+
+            <h3>The Solution: Simulate Your Own Data</h3>
+            <p>Rather than waiting for access to restricted datasets, this project takes a different approach: <strong>build a configurable simulation that generates realistic data</strong> based on economic principles.</p>
+
+            <div class="highlight">
+                <strong>Core Philosophy:</strong> Create a small-scale, fully controllable energy system where every parameter is transparent and adjustable. Use welfare-maximizing optimization to generate economically rational flows that can be analyzed, visualized, and understood.
+            </div>
+
+            <h3>What This Enables</h3>
+            <ul>
+                <li><strong>Economic Analysis:</strong> Understand marginal costs, willingness-to-pay, and market equilibrium concepts</li>
+                <li><strong>Sensitivity Studies:</strong> Change one parameter and see how the entire system responds</li>
+                <li><strong>Visualization:</strong> See energy flows in real-time with the 3D Blender integration</li>
+                <li><strong>Education:</strong> Learn about linear programming, energy system modeling, and hydrogen economics</li>
+                <li><strong>Prototyping:</strong> Test business case assumptions before committing to real infrastructure investments</li>
+            </ul>
+
+            <h3>Design Principles</h3>
+            <table>
+                <tr>
+                    <th>Principle</th>
+                    <th>Implementation</th>
+                </tr>
+                <tr>
+                    <td>Transparency</td>
+                    <td>All costs, capacities, and utility functions are visible and adjustable via the UI</td>
+                </tr>
+                <tr>
+                    <td>Economic Rigor</td>
+                    <td>Welfare-maximizing LP ensures economically rational dispatch decisions</td>
+                </tr>
+                <tr>
+                    <td>Flexibility</td>
+                    <td>Dynamic node management allows testing any network topology</td>
+                </tr>
+                <tr>
+                    <td>Extensibility</td>
+                    <td>Modular architecture supports adding new node types, carriers, and constraints</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Section 2: Architecture -->
         <section id="architecture" class="section">
-            <h2>1. System Architecture</h2>
+            <h2>2. System Architecture</h2>
             <p>The hydrogen simulation system consists of three main components that work together to model, optimize, and visualize a hydrogen/electricity network.</p>
 
             <div class="diagram">
@@ -452,7 +504,7 @@
 
         <!-- Section 2: Libraries -->
         <section id="libraries" class="section">
-            <h2>2. Libraries & Technologies</h2>
+            <h2>3. Libraries & Technologies</h2>
             <p>The simulation uses a carefully selected stack of Python libraries, each serving a specific purpose in the energy system modeling pipeline.</p>
 
             <div class="library-grid">
@@ -550,7 +602,7 @@
 
         <!-- Section 3: Dynamic Node Management -->
         <section id="dynamic-nodes" class="section">
-            <h2>3. Dynamic Node Management</h2>
+            <h2>4. Dynamic Node Management</h2>
             <p>The simulation supports dynamic creation, modification, and deletion of network nodes through the web interface. Nodes are persisted to a JSON registry file and automatically synchronized with the network topology.</p>
 
             <h3>3.1 Node Types</h3>
@@ -659,7 +711,7 @@
 
         <!-- Section 4: Economic Model -->
         <section id="economic-model" class="section">
-            <h2>4. Economic Model</h2>
+            <h2>5. Economic Model</h2>
             <p>The simulation uses a <strong>welfare-maximizing</strong> economic model where the objective is to maximize total surplus (consumer utility minus production costs).</p>
 
             <h3>4.1 The Network Structure</h3>
@@ -817,7 +869,7 @@ x_alpha + x_grid = x_bravo_in + &Sigma;x_delta_i</pre>
 
         <!-- Section 5: Optimization Process -->
         <section id="optimization" class="section">
-            <h2>5. Optimization Process</h2>
+            <h2>6. Optimization Process</h2>
             <p>Here's the step-by-step process when you click "Run Simulation":</p>
 
             <h3>Step 1: Build Energy System</h3>
@@ -915,7 +967,7 @@ welfare = total_utility - total_cost</pre>
 
         <!-- Section 6: Data Flow -->
         <section id="data-flow" class="section">
-            <h2>6. Data Flow</h2>
+            <h2>7. Data Flow</h2>
             <p>Data flows between components through JSON files and HTTP API calls.</p>
 
             <h3>6.1 Configuration Flow</h3>
@@ -1010,7 +1062,7 @@ network.py                    network_data.json                 blender_visualiz
 
         <!-- Section 7: API Reference -->
         <section id="api" class="section">
-            <h2>7. API Reference</h2>
+            <h2>8. API Reference</h2>
 
             <h3>GET /api/config</h3>
             <p>Returns current simulation configuration.</p>
@@ -1147,10 +1199,10 @@ network.py                    network_data.json                 blender_visualiz
 
         <!-- Section 8: Blender Visualization -->
         <section id="blender" class="section">
-            <h2>8. Blender Visualization</h2>
+            <h2>9. Blender Visualization</h2>
             <p>The Blender visualization creates a 3D representation of the network with animated flow particles.</p>
 
-            <h3>8.1 Node Representations</h3>
+            <h3>9.1 Node Representations</h3>
             <table>
                 <tr>
                     <th>Node Type</th>
@@ -1174,13 +1226,13 @@ network.py                    network_data.json                 blender_visualiz
                 </tr>
             </table>
 
-            <h3>8.2 Pipe Colors by Carrier</h3>
+            <h3>9.2 Pipe Colors by Carrier</h3>
             <ul>
                 <li><strong>Electricity:</strong> Blue pipes with blue particle flow</li>
                 <li><strong>Hydrogen:</strong> Orange pipes with orange particle flow</li>
             </ul>
 
-            <h3>8.3 Animation System</h3>
+            <h3>9.3 Animation System</h3>
             <div class="code-block">
 <pre><span class="comment"># Flow particles are animated along pipe paths</span>
 <span class="keyword">def</span> <span class="function">animate_particles</span>(pipe, num_particles=<span class="number">5</span>):
@@ -1196,7 +1248,7 @@ network.py                    network_data.json                 blender_visualiz
             particle.keyframe_insert(data_path=<span class="string">"location"</span>)</pre>
             </div>
 
-            <h3>8.4 Sync Workflow</h3>
+            <h3>9.4 Sync Workflow</h3>
             <ol>
                 <li>Run simulation from web controller</li>
                 <li>Click "Launch Blender" to open visualization</li>
@@ -1205,6 +1257,148 @@ network.py                    network_data.json                 blender_visualiz
                 <li>New positions saved to <code>network_data.json</code></li>
                 <li>Click "Sync from Blender" in web controller</li>
             </ol>
+        </section>
+
+        <!-- Section 10: Future Directions -->
+        <section id="future" class="section">
+            <h2>10. Future Directions</h2>
+            <p>This simulation provides a foundation for exploring hydrogen economics. Here are potential directions for extending the model:</p>
+
+            <h3>10.1 Adding Realism</h3>
+
+            <h4>Noise and Uncertainty</h4>
+            <p>Real energy systems don't operate with perfect information. Future enhancements could include:</p>
+            <ul>
+                <li><strong>Stochastic production profiles:</strong> Add random variation to solar/wind output</li>
+                <li><strong>Demand uncertainty:</strong> Consumer willingness-to-pay that varies over time</li>
+                <li><strong>Equipment failures:</strong> Random outages for generators and electrolyzers</li>
+                <li><strong>Price volatility:</strong> Grid electricity prices that fluctuate hourly</li>
+            </ul>
+
+            <h4>Geographic Factors</h4>
+            <p>Distance matters in real energy systems:</p>
+            <ul>
+                <li><strong>Cable/pipeline lengths:</strong> Add distance-based costs for electricity transmission and hydrogen transport</li>
+                <li><strong>Map integration:</strong> Place nodes on a real map to calculate actual distances</li>
+                <li><strong>Regional pricing:</strong> Different electricity costs in different locations</li>
+                <li><strong>Transport losses:</strong> Energy losses proportional to distance</li>
+            </ul>
+
+            <h3>10.2 Economic Analysis Questions</h3>
+            <p>The simulation can help answer practical business questions:</p>
+
+            <div class="highlight">
+                <strong>Break-even Analysis:</strong> At what hydrogen price does electrolysis become economically viable? With current electricity at 8 ct/kWh and 70% efficiency, the marginal cost is ~13.57 ct/kg. How does this change with cheaper renewable electricity?
+            </div>
+
+            <table>
+                <tr>
+                    <th>Question</th>
+                    <th>Approach</th>
+                </tr>
+                <tr>
+                    <td>What electricity price makes H2 production viable?</td>
+                    <td>Vary generator cost, observe when Bravo starts producing</td>
+                </tr>
+                <tr>
+                    <td>What WTP justifies 500 kg/day hydrogen consumption?</td>
+                    <td>Adjust consumer scale parameters until consumption reaches target</td>
+                </tr>
+                <tr>
+                    <td>When is hydrogen storage more valuable than batteries?</td>
+                    <td>Compare welfare with H2 storage vs battery under variable solar</td>
+                </tr>
+                <tr>
+                    <td>What's the optimal electrolyzer size?</td>
+                    <td>Sweep Bravo capacity, find welfare-maximizing configuration</td>
+                </tr>
+            </table>
+
+            <h3>10.3 Storage and Temporal Displacement</h3>
+            <p>One of hydrogen's key advantages is long-duration storage. The simulation already supports both battery and hydrogen storage, enabling comparison studies:</p>
+
+            <ul>
+                <li><strong>Diurnal arbitrage:</strong> Store excess solar midday, release in evening peak</li>
+                <li><strong>Seasonal storage:</strong> Extend to multi-day periods to model weekly/seasonal patterns</li>
+                <li><strong>Hybrid strategies:</strong> When to use batteries (fast response, high efficiency) vs H2 storage (large capacity, lower efficiency)</li>
+                <li><strong>Value of flexibility:</strong> Quantify the welfare gain from adding storage to a system</li>
+            </ul>
+
+            <div class="code-block">
+<pre><span class="comment"># Research question: Benefits of hybrid storage</span>
+<span class="comment"># Compare three scenarios:</span>
+Scenario A: Solar + Electrolyzer only
+Scenario B: Solar + Electrolyzer + Battery
+Scenario C: Solar + Electrolyzer + Battery + H2 Storage
+
+<span class="comment"># Measure: Total welfare, curtailment, consumer satisfaction</span></pre>
+            </div>
+
+            <h3>10.4 Real-World Integration</h3>
+            <p>Moving beyond abstract models toward real project planning:</p>
+
+            <h4>Adding Real Projects</h4>
+            <ul>
+                <li><strong>Power plants:</strong> Model actual solar/wind farms with their specific capacities and cost structures</li>
+                <li><strong>Industrial consumers:</strong> Steel plants, refineries, ammonia production with realistic H2 demand profiles</li>
+                <li><strong>Existing infrastructure:</strong> Model connections to real grid nodes and industrial sites</li>
+            </ul>
+
+            <h4>Business Case Development</h4>
+            <p>Use the simulation to build investment cases:</p>
+            <ul>
+                <li><strong>Sensitivity analysis:</strong> How does project NPV change with electricity price, H2 demand, or equipment costs?</li>
+                <li><strong>Risk assessment:</strong> Monte Carlo simulations with parameter uncertainty</li>
+                <li><strong>Hybrid systems:</strong> Often the optimal solution combines multiple technologies - demonstrate why pure H2 or pure battery rarely wins</li>
+            </ul>
+
+            <h3>10.5 Validating General Findings</h3>
+            <p>Use the model to reproduce and understand findings from energy research:</p>
+
+            <ul>
+                <li><strong>Electrolysis efficiency thresholds:</strong> At what efficiency does electrolysis become competitive with SMR (steam methane reforming)?</li>
+                <li><strong>Grid integration limits:</strong> How much variable renewable generation can a system absorb before curtailment becomes excessive?</li>
+                <li><strong>Sector coupling benefits:</strong> Quantify the welfare gain from allowing electricity-hydrogen conversion vs separate systems</li>
+                <li><strong>Price formation:</strong> Observe how marginal costs determine market-clearing prices in the simulation</li>
+            </ul>
+
+            <div class="highlight">
+                <strong>Validation Approach:</strong> Take a known result from energy economics literature (e.g., "electrolysis needs electricity below X ct/kWh to compete"), configure the simulation with those parameters, and verify the model reproduces the finding. This builds confidence in the model's economic logic.
+            </div>
+
+            <h3>10.6 Technical Enhancements</h3>
+            <table>
+                <tr>
+                    <th>Enhancement</th>
+                    <th>Description</th>
+                    <th>Complexity</th>
+                </tr>
+                <tr>
+                    <td>Multi-period investment</td>
+                    <td>Optimize capacity additions over time, not just dispatch</td>
+                    <td>High</td>
+                </tr>
+                <tr>
+                    <td>Fuel cells</td>
+                    <td>Add H2-to-electricity conversion for grid services</td>
+                    <td>Medium</td>
+                </tr>
+                <tr>
+                    <td>Network constraints</td>
+                    <td>Model transmission capacity limits between nodes</td>
+                    <td>Medium</td>
+                </tr>
+                <tr>
+                    <td>Multiple carriers</td>
+                    <td>Add heat, natural gas, or synthetic fuels</td>
+                    <td>High</td>
+                </tr>
+                <tr>
+                    <td>Real-time data feeds</td>
+                    <td>Connect to APIs for live electricity prices</td>
+                    <td>Medium</td>
+                </tr>
+            </table>
         </section>
 
         <footer>

@@ -14,6 +14,21 @@ from flask_cors import CORS
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from network import create_hydrogen_network, export_network_to_json, print_network_info
+import math
+
+
+def sanitize_nan(obj):
+    """Recursively replace NaN and Inf values with None for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: sanitize_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_nan(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
+
 
 # Optional: simulation requires oemof which needs HiGHS solver
 SIMULATION_AVAILABLE = False
@@ -91,18 +106,19 @@ DEFAULT_NODE_REGISTRY = {
     ],
     'consumers': [
         {'name': 'Charlie', 'consumer_type': 'logarithmic_hydrogen', 'carrier': 'hydrogen',
-         'log_scale': 30.0, 'log_shape': 5.0, 'log_max_quantity': 25.0, 'log_num_tranches': 5,
+         'log_scale': 200.0, 'log_shape': 5.0, 'log_max_quantity': 25.0, 'log_num_tranches': 5,
          'position': [-2, -2, 0]},
         {'name': 'Delta', 'consumer_type': 'logarithmic_electricity', 'carrier': 'electricity',
-         'log_scale': 25.0, 'log_shape': 10.0, 'log_max_quantity': 50.0, 'log_num_tranches': 5,
+         'log_scale': 150.0, 'log_shape': 10.0, 'log_max_quantity': 50.0, 'log_num_tranches': 5,
          'position': [2, 0, 0]},
         {'name': 'Echo', 'consumer_type': 'cobb_douglas', 'carrier': 'both',
-         'cd_A': 15.0, 'cd_alpha': 0.4, 'cd_beta': 0.6, 'cd_max_bundles': 15.0,
+         'cd_A': 100.0, 'cd_alpha': 0.4, 'cd_beta': 0.6, 'cd_max_bundles': 15.0,
          'cd_h_per_bundle': 1.0, 'cd_e_per_bundle': 3.0, 'cd_num_tranches': 5,
          'position': [0, -2, 0]}
     ],
     'batteries': [],
-    'h2_storage': []
+    'h2_storage': [],
+    'connections': []  # Explicit connections list - if empty, auto-generate
 }
 
 # Active node registry
@@ -123,11 +139,301 @@ def load_node_registry():
         node_registry = json.loads(json.dumps(DEFAULT_NODE_REGISTRY))
         save_node_registry()
 
+    # Ensure connections list exists
+    ensure_connections_exist()
+    # Clean up any stale connections referencing non-existent nodes
+    if clean_stale_connections():
+        save_node_registry()  # Persist the cleanup
+
 
 def save_node_registry():
     """Save node registry to JSON file."""
     with open(NODE_REGISTRY_PATH, 'w') as f:
         json.dump(node_registry, f, indent=2)
+
+
+def generate_default_connections():
+    """Generate default connections based on node types and carriers."""
+    connections = []
+
+    # Generators -> Transformers (electricity)
+    for gen in node_registry['generators']:
+        for trans in node_registry['transformers']:
+            if trans.get('input_carrier', 'electricity') == 'electricity':
+                connections.append({
+                    'source': gen['name'],
+                    'target': trans['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+
+    # Generators -> Electricity Consumers
+    for gen in node_registry['generators']:
+        for cons in node_registry['consumers']:
+            if cons['carrier'] in ['electricity', 'both']:
+                connections.append({
+                    'source': gen['name'],
+                    'target': cons['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+
+    # Transformers -> Hydrogen Consumers
+    for trans in node_registry['transformers']:
+        for cons in node_registry['consumers']:
+            if cons['carrier'] in ['hydrogen', 'both']:
+                connections.append({
+                    'source': trans['name'],
+                    'target': cons['name'],
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+
+    # Generators -> Batteries (charging)
+    for gen in node_registry['generators']:
+        for batt in node_registry.get('batteries', []):
+            connections.append({
+                'source': gen['name'],
+                'target': batt['name'],
+                'carrier': 'electricity',
+                'enabled': True
+            })
+
+    # Batteries -> Transformers (discharging to electrolyzers)
+    for batt in node_registry.get('batteries', []):
+        for trans in node_registry['transformers']:
+            if trans.get('input_carrier', 'electricity') == 'electricity':
+                connections.append({
+                    'source': batt['name'],
+                    'target': trans['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+
+    # Batteries -> Electricity Consumers (discharging)
+    for batt in node_registry.get('batteries', []):
+        for cons in node_registry['consumers']:
+            if cons['carrier'] in ['electricity', 'both']:
+                connections.append({
+                    'source': batt['name'],
+                    'target': cons['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+
+    # Transformers -> H2 Storage (injection)
+    for trans in node_registry['transformers']:
+        for h2s in node_registry.get('h2_storage', []):
+            connections.append({
+                'source': trans['name'],
+                'target': h2s['name'],
+                'carrier': 'hydrogen',
+                'enabled': True
+            })
+
+    # H2 Storage -> Hydrogen Consumers (withdrawal)
+    for h2s in node_registry.get('h2_storage', []):
+        for cons in node_registry['consumers']:
+            if cons['carrier'] in ['hydrogen', 'both']:
+                connections.append({
+                    'source': h2s['name'],
+                    'target': cons['name'],
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+
+    return connections
+
+
+def ensure_connections_exist():
+    """Ensure connections list exists and populate if empty."""
+    if 'connections' not in node_registry:
+        node_registry['connections'] = []
+    if not node_registry['connections']:
+        node_registry['connections'] = generate_default_connections()
+        save_node_registry()
+
+
+def get_all_node_names():
+    """Get set of all node names currently in registry."""
+    names = set()
+    for gen in node_registry.get('generators', []):
+        names.add(gen['name'])
+    for trans in node_registry.get('transformers', []):
+        names.add(trans['name'])
+    for cons in node_registry.get('consumers', []):
+        names.add(cons['name'])
+    for batt in node_registry.get('batteries', []):
+        names.add(batt['name'])
+    for h2s in node_registry.get('h2_storage', []):
+        names.add(h2s['name'])
+    return names
+
+
+def clean_stale_connections():
+    """Remove connections that reference non-existent nodes. Returns True if any were removed."""
+    valid_names = get_all_node_names()
+    connections = node_registry.get('connections', [])
+    original_count = len(connections)
+    # Filter to keep only connections where both source and target exist
+    node_registry['connections'] = [
+        conn for conn in connections
+        if conn['source'] in valid_names and conn['target'] in valid_names
+    ]
+    removed_count = original_count - len(node_registry['connections'])
+    if removed_count > 0:
+        print(f"Cleaned up {removed_count} stale connections")
+    return removed_count > 0
+
+
+def add_connections_for_new_node(node_name, node_type, carrier=None):
+    """Add default connections for a newly added node."""
+    connections = node_registry.get('connections', [])
+
+    if node_type == 'generator':
+        # Generator connects to all transformers and electricity/both consumers
+        for trans in node_registry.get('transformers', []):
+            if trans.get('input_carrier', 'electricity') == 'electricity':
+                connections.append({
+                    'source': node_name,
+                    'target': trans['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+        for cons in node_registry.get('consumers', []):
+            if cons['carrier'] in ['electricity', 'both']:
+                connections.append({
+                    'source': node_name,
+                    'target': cons['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+        for batt in node_registry.get('batteries', []):
+            connections.append({
+                'source': node_name,
+                'target': batt['name'],
+                'carrier': 'electricity',
+                'enabled': True
+            })
+
+    elif node_type == 'transformer':
+        # Transformer receives from all generators
+        for gen in node_registry.get('generators', []):
+            connections.append({
+                'source': gen['name'],
+                'target': node_name,
+                'carrier': 'electricity',
+                'enabled': True
+            })
+        # Transformer also receives from batteries
+        for batt in node_registry.get('batteries', []):
+            connections.append({
+                'source': batt['name'],
+                'target': node_name,
+                'carrier': 'electricity',
+                'enabled': True
+            })
+        # Transformer outputs to hydrogen/both consumers
+        for cons in node_registry.get('consumers', []):
+            if cons['carrier'] in ['hydrogen', 'both']:
+                connections.append({
+                    'source': node_name,
+                    'target': cons['name'],
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+        # Transformer outputs to H2 storage
+        for h2s in node_registry.get('h2_storage', []):
+            connections.append({
+                'source': node_name,
+                'target': h2s['name'],
+                'carrier': 'hydrogen',
+                'enabled': True
+            })
+
+    elif node_type == 'consumer':
+        # Consumer receives from generators (if elec/both) and transformers (if h2/both)
+        if carrier in ['electricity', 'both']:
+            for gen in node_registry.get('generators', []):
+                connections.append({
+                    'source': gen['name'],
+                    'target': node_name,
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+            # Also from batteries
+            for batt in node_registry.get('batteries', []):
+                connections.append({
+                    'source': batt['name'],
+                    'target': node_name,
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+        if carrier in ['hydrogen', 'both']:
+            for trans in node_registry.get('transformers', []):
+                connections.append({
+                    'source': trans['name'],
+                    'target': node_name,
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+            # Also from H2 storage
+            for h2s in node_registry.get('h2_storage', []):
+                connections.append({
+                    'source': h2s['name'],
+                    'target': node_name,
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+
+    elif node_type == 'battery':
+        # Battery receives from all generators (charging)
+        for gen in node_registry.get('generators', []):
+            connections.append({
+                'source': gen['name'],
+                'target': node_name,
+                'carrier': 'electricity',
+                'enabled': True
+            })
+        # Battery outputs to transformers (discharging)
+        for trans in node_registry.get('transformers', []):
+            if trans.get('input_carrier', 'electricity') == 'electricity':
+                connections.append({
+                    'source': node_name,
+                    'target': trans['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+        # Battery outputs to electricity consumers (discharging)
+        for cons in node_registry.get('consumers', []):
+            if cons['carrier'] in ['electricity', 'both']:
+                connections.append({
+                    'source': node_name,
+                    'target': cons['name'],
+                    'carrier': 'electricity',
+                    'enabled': True
+                })
+
+    elif node_type == 'h2_storage':
+        # H2 storage receives from all transformers (injection)
+        for trans in node_registry.get('transformers', []):
+            connections.append({
+                'source': trans['name'],
+                'target': node_name,
+                'carrier': 'hydrogen',
+                'enabled': True
+            })
+        # H2 storage outputs to hydrogen consumers (withdrawal)
+        for cons in node_registry.get('consumers', []):
+            if cons['carrier'] in ['hydrogen', 'both']:
+                connections.append({
+                    'source': node_name,
+                    'target': cons['name'],
+                    'carrier': 'hydrogen',
+                    'enabled': True
+                })
+
+    node_registry['connections'] = connections
 
 
 def sync_nodes_to_network():
@@ -152,13 +458,6 @@ def sync_nodes_to_network():
             'carrier': 'both',
             'position': trans.get('position', [0, 0, 0])
         })
-        # Create edges from generators to this transformer
-        for gen in node_registry['generators']:
-            network_edges.append({
-                'source': gen['name'],
-                'target': trans['name'],
-                'carrier': 'electricity'
-            })
 
     # Add consumers
     for cons in node_registry['consumers']:
@@ -168,21 +467,6 @@ def sync_nodes_to_network():
             'carrier': cons['carrier'],
             'position': cons.get('position', [0, 0, 0])
         })
-        # Create edges based on carrier type
-        if cons['carrier'] in ['electricity', 'both']:
-            for gen in node_registry['generators']:
-                network_edges.append({
-                    'source': gen['name'],
-                    'target': cons['name'],
-                    'carrier': 'electricity'
-                })
-        if cons['carrier'] in ['hydrogen', 'both']:
-            for trans in node_registry['transformers']:
-                network_edges.append({
-                    'source': trans['name'],
-                    'target': cons['name'],
-                    'carrier': 'hydrogen'
-                })
 
     # Add batteries
     for batt in node_registry.get('batteries', []):
@@ -192,13 +476,6 @@ def sync_nodes_to_network():
             'carrier': 'electricity',
             'position': batt.get('position', [3, 0, 0])
         })
-        # Batteries connect to electricity bus (bidirectional)
-        for gen in node_registry['generators']:
-            network_edges.append({
-                'source': gen['name'],
-                'target': batt['name'],
-                'carrier': 'electricity'
-            })
 
     # Add H2 storage
     for h2s in node_registry.get('h2_storage', []):
@@ -208,13 +485,18 @@ def sync_nodes_to_network():
             'carrier': 'hydrogen',
             'position': h2s.get('position', [-3, -1, 0])
         })
-        # H2 storage connects to hydrogen bus (via transformers)
-        for trans in node_registry['transformers']:
-            network_edges.append({
-                'source': trans['name'],
-                'target': h2s['name'],
-                'carrier': 'hydrogen'
-            })
+
+    # Use explicit connections (only enabled ones and only for valid nodes) for edges
+    valid_names = get_all_node_names()
+    for conn in node_registry.get('connections', []):
+        if conn.get('enabled', True):
+            # Only add edge if both source and target nodes exist
+            if conn['source'] in valid_names and conn['target'] in valid_names:
+                network_edges.append({
+                    'source': conn['source'],
+                    'target': conn['target'],
+                    'carrier': conn['carrier']
+                })
 
     # Save to network JSON
     with open(JSON_PATH, 'w') as f:
@@ -420,9 +702,12 @@ def run_simulation():
         # Convert flows to serializable format (filter out NaN values)
         import math
         flow_data = {}
-        for name, df in flows.items():
-            # Replace NaN with None for JSON compatibility, then filter
-            values = df.values.tolist()
+        for name, data in flows.items():
+            # Handle both DataFrame and list formats (storage data comes as lists)
+            if hasattr(data, 'values'):
+                values = data.values.tolist()
+            else:
+                values = data  # Already a list
             # Filter out rows containing NaN
             clean_values = []
             for row in values:
@@ -464,6 +749,227 @@ def get_results():
         return jsonify({'status': 'no_results', 'message': 'No simulation has been run yet'})
 
 
+@app.route('/api/simulate/detailed', methods=['POST'])
+def run_detailed_simulation():
+    """Run simulation and return detailed per-timestep log of all node activities."""
+    global last_results
+
+    if not SIMULATION_AVAILABLE:
+        return jsonify({
+            'status': 'error',
+            'message': 'Simulation not available. Install oemof: pip install oemof.solph pandas highspy'
+        }), 503
+
+    try:
+        # Build generator configs from node registry
+        generators = [
+            GeneratorConfig(
+                name=g['name'],
+                capacity=g['capacity'],
+                cost=g['cost'],
+                profile_type=g.get('profile_type', 'solar')
+            )
+            for g in node_registry['generators']
+        ]
+
+        # Build transformer configs from node registry
+        transformers = [
+            TransformerConfig(
+                name=t['name'],
+                capacity=t['capacity'],
+                efficiency=t['efficiency'],
+                cost=t['cost'],
+                input_carrier=t.get('input_carrier', 'electricity'),
+                output_carrier=t.get('output_carrier', 'hydrogen')
+            )
+            for t in node_registry['transformers']
+        ]
+
+        # Build consumer configs from node registry
+        consumers = []
+        for c in node_registry['consumers']:
+            consumer = ConsumerConfig(
+                name=c['name'],
+                consumer_type=c['consumer_type'],
+                carrier=c['carrier']
+            )
+            if c['consumer_type'].startswith('logarithmic'):
+                consumer.log_scale = c.get('log_scale', 30.0)
+                consumer.log_shape = c.get('log_shape', 5.0)
+                consumer.log_max_quantity = c.get('log_max_quantity', 25.0)
+                consumer.log_num_tranches = int(c.get('log_num_tranches', 5))
+            elif c['consumer_type'] == 'cobb_douglas':
+                consumer.cd_A = c.get('cd_A', 15.0)
+                consumer.cd_alpha = c.get('cd_alpha', 0.4)
+                consumer.cd_beta = c.get('cd_beta', 0.6)
+                consumer.cd_max_bundles = c.get('cd_max_bundles', 15.0)
+                consumer.cd_h_per_bundle = c.get('cd_h_per_bundle', 1.0)
+                consumer.cd_e_per_bundle = c.get('cd_e_per_bundle', 3.0)
+                consumer.cd_num_tranches = int(c.get('cd_num_tranches', 5))
+            consumers.append(consumer)
+
+        # Build battery configs
+        batteries = [
+            BatteryConfig(
+                name=b['name'],
+                capacity=b.get('capacity', 100.0),
+                charge_rate=b.get('charge_rate', 50.0),
+                discharge_rate=b.get('discharge_rate', 50.0),
+                efficiency_in=b.get('efficiency_in', 0.95),
+                efficiency_out=b.get('efficiency_out', 0.95),
+                loss_rate=b.get('loss_rate', 0.0002),
+                initial_level=b.get('initial_level', 0.5),
+                min_level=b.get('min_level', 0.1),
+                cost=b.get('cost', 1.0)
+            )
+            for b in node_registry.get('batteries', [])
+        ]
+
+        # Build H2 storage configs
+        h2_storage = [
+            H2StorageConfig(
+                name=h['name'],
+                capacity=h.get('capacity', 50.0),
+                injection_rate=h.get('injection_rate', 10.0),
+                withdrawal_rate=h.get('withdrawal_rate', 10.0),
+                efficiency_in=h.get('efficiency_in', 0.95),
+                efficiency_out=h.get('efficiency_out', 0.99),
+                loss_rate=h.get('loss_rate', 0.0001),
+                initial_level=h.get('initial_level', 0.5),
+                cost=h.get('cost', 0.5)
+            )
+            for h in node_registry.get('h2_storage', [])
+        ]
+
+        config = SimulationConfig(
+            periods=int(current_config['periods']),
+            grid_cost=current_config['grid_cost'],
+            generators=generators,
+            transformers=transformers,
+            consumers=consumers,
+            batteries=batteries,
+            h2_storage=h2_storage
+        )
+
+        sim = HydrogenSystemSimulation(config)
+        sim.build_system()
+        sim.solve()
+
+        # Get detailed log
+        detailed_log = sim.get_detailed_log()
+        summary = sim.get_summary()
+
+        # Sanitize NaN values for JSON serialization
+        detailed_log = sanitize_nan(detailed_log)
+        summary = sanitize_nan(summary)
+
+        return jsonify({
+            'status': 'ok',
+            'periods': config.periods,
+            'summary': summary,
+            'detailed_log': detailed_log,
+            'node_registry': {
+                'generators': [g['name'] for g in node_registry['generators']],
+                'transformers': [t['name'] for t in node_registry['transformers']],
+                'consumers': [c['name'] for c in node_registry['consumers']],
+                'batteries': [b['name'] for b in node_registry.get('batteries', [])],
+                'h2_storage': [h['name'] for h in node_registry.get('h2_storage', [])]
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+# =============================================================================
+# Preset Management API Endpoints
+# =============================================================================
+
+PRESETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'presets')
+
+
+@app.route('/api/presets', methods=['GET'])
+def list_presets():
+    """List all available preset configurations."""
+    presets = []
+    if os.path.exists(PRESETS_DIR):
+        for filename in os.listdir(PRESETS_DIR):
+            if filename.endswith('.json'):
+                preset_name = filename[:-5]  # Remove .json
+                preset_path = os.path.join(PRESETS_DIR, filename)
+                try:
+                    with open(preset_path, 'r') as f:
+                        data = json.load(f)
+                    presets.append({
+                        'name': preset_name,
+                        'filename': filename,
+                        'generators': len(data.get('generators', [])),
+                        'transformers': len(data.get('transformers', [])),
+                        'consumers': len(data.get('consumers', [])),
+                        'batteries': len(data.get('batteries', [])),
+                        'h2_storage': len(data.get('h2_storage', []))
+                    })
+                except Exception as e:
+                    print(f"Error reading preset {filename}: {e}")
+    return jsonify(presets)
+
+
+@app.route('/api/presets/<name>', methods=['GET'])
+def get_preset(name):
+    """Get a specific preset configuration."""
+    preset_path = os.path.join(PRESETS_DIR, f'{name}.json')
+    if not os.path.exists(preset_path):
+        return jsonify({'status': 'error', 'message': f'Preset {name} not found'}), 404
+
+    with open(preset_path, 'r') as f:
+        data = json.load(f)
+    return jsonify(data)
+
+
+@app.route('/api/presets/<name>/load', methods=['POST'])
+def load_preset(name):
+    """Load a preset and replace current node registry."""
+    global node_registry
+
+    preset_path = os.path.join(PRESETS_DIR, f'{name}.json')
+    if not os.path.exists(preset_path):
+        return jsonify({'status': 'error', 'message': f'Preset {name} not found'}), 404
+
+    with open(preset_path, 'r') as f:
+        data = json.load(f)
+
+    # Replace node registry with preset data
+    node_registry = {
+        'generators': data.get('generators', []),
+        'transformers': data.get('transformers', []),
+        'consumers': data.get('consumers', []),
+        'batteries': data.get('batteries', []),
+        'h2_storage': data.get('h2_storage', []),
+        'connections': data.get('connections', [])
+    }
+
+    # If connections are empty, generate defaults
+    if not node_registry['connections']:
+        node_registry['connections'] = generate_default_connections()
+
+    # Clean up any stale connections (in case preset has invalid data)
+    clean_stale_connections()
+
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({
+        'status': 'ok',
+        'message': f'Loaded preset: {name}',
+        'nodes': node_registry
+    })
+
+
 # =============================================================================
 # Node Management API Endpoints
 # =============================================================================
@@ -471,6 +977,7 @@ def get_results():
 @app.route('/api/nodes', methods=['GET'])
 def get_all_nodes():
     """Get all configured nodes."""
+    load_node_registry()  # Reload from file to sync across workers
     return jsonify(node_registry)
 
 
@@ -497,6 +1004,7 @@ def manage_generators():
         'position': data.get('position', [0, 2, 0])
     }
     node_registry['generators'].append(generator)
+    add_connections_for_new_node(data['name'], 'generator')
     save_node_registry()
     sync_nodes_to_network()
 
@@ -517,6 +1025,7 @@ def manage_generator(name):
 
     if request.method == 'DELETE':
         del generators[gen_idx]
+        clean_stale_connections()
         save_node_registry()
         sync_nodes_to_network()
         return jsonify({'status': 'ok', 'message': f'Generator {name} deleted'})
@@ -559,6 +1068,7 @@ def manage_transformers():
         'position': data.get('position', [-2, 0, 0])
     }
     node_registry['transformers'].append(transformer)
+    add_connections_for_new_node(data['name'], 'transformer')
     save_node_registry()
     sync_nodes_to_network()
 
@@ -579,6 +1089,7 @@ def manage_transformer(name):
 
     if request.method == 'DELETE':
         del transformers[trans_idx]
+        clean_stale_connections()
         save_node_registry()
         sync_nodes_to_network()
         return jsonify({'status': 'ok', 'message': f'Transformer {name} deleted'})
@@ -643,6 +1154,7 @@ def manage_consumers():
         })
 
     node_registry['consumers'].append(consumer)
+    add_connections_for_new_node(data['name'], 'consumer', consumer['carrier'])
     save_node_registry()
     sync_nodes_to_network()
 
@@ -663,6 +1175,7 @@ def manage_consumer(name):
 
     if request.method == 'DELETE':
         del consumers[cons_idx]
+        clean_stale_connections()
         save_node_registry()
         sync_nodes_to_network()
         return jsonify({'status': 'ok', 'message': f'Consumer {name} deleted'})
@@ -674,15 +1187,20 @@ def manage_consumer(name):
     # Update common fields
     consumer['position'] = data.get('position', consumer.get('position', [0, 0, 0]))
 
-    # Update type-specific fields
-    if consumer['consumer_type'].startswith('logarithmic'):
+    # Update consumer_type and carrier if provided
+    new_type = data.get('consumer_type', consumer['consumer_type'])
+    consumer['consumer_type'] = new_type
+    consumer['carrier'] = data.get('carrier', consumer.get('carrier', 'electricity'))
+
+    # Update type-specific fields based on the NEW type
+    if new_type.startswith('logarithmic'):
         consumer.update({
             'log_scale': float(data.get('log_scale', consumer.get('log_scale', 30.0))),
             'log_shape': float(data.get('log_shape', consumer.get('log_shape', 5.0))),
             'log_max_quantity': float(data.get('log_max_quantity', consumer.get('log_max_quantity', 25.0))),
             'log_num_tranches': int(data.get('log_num_tranches', consumer.get('log_num_tranches', 5)))
         })
-    elif consumer['consumer_type'] == 'cobb_douglas':
+    elif new_type == 'cobb_douglas':
         consumer.update({
             'cd_A': float(data.get('cd_A', consumer.get('cd_A', 15.0))),
             'cd_alpha': float(data.get('cd_alpha', consumer.get('cd_alpha', 0.4))),
@@ -734,6 +1252,7 @@ def manage_batteries():
         'position': data.get('position', [3, 0, 0])
     }
     node_registry['batteries'].append(battery)
+    add_connections_for_new_node(data['name'], 'battery')
     save_node_registry()
     sync_nodes_to_network()
 
@@ -754,6 +1273,7 @@ def manage_battery(name):
 
     if request.method == 'DELETE':
         del batteries[batt_idx]
+        clean_stale_connections()
         save_node_registry()
         sync_nodes_to_network()
         return jsonify({'status': 'ok', 'message': f'Battery {name} deleted'})
@@ -808,6 +1328,7 @@ def manage_h2_storage_list():
         'position': data.get('position', [-3, -1, 0])
     }
     node_registry['h2_storage'].append(h2_storage)
+    add_connections_for_new_node(data['name'], 'h2_storage')
     save_node_registry()
     sync_nodes_to_network()
 
@@ -828,6 +1349,7 @@ def manage_h2_storage(name):
 
     if request.method == 'DELETE':
         del h2_storage_list[h2_idx]
+        clean_stale_connections()
         save_node_registry()
         sync_nodes_to_network()
         return jsonify({'status': 'ok', 'message': f'H2 storage {name} deleted'})
@@ -849,6 +1371,170 @@ def manage_h2_storage(name):
     sync_nodes_to_network()
 
     return jsonify({'status': 'ok', 'h2_storage': h2_storage_list[h2_idx]})
+
+
+# =============================================================================
+# Connection Management API Endpoints
+# =============================================================================
+
+@app.route('/api/connections', methods=['GET'])
+def get_connections():
+    """Get all connections."""
+    load_node_registry()  # Reload from file to sync across workers
+    ensure_connections_exist()
+    return jsonify(node_registry.get('connections', []))
+
+
+@app.route('/api/connections/regenerate', methods=['POST'])
+def regenerate_connections():
+    """Regenerate default connections from node types."""
+    load_node_registry()  # Reload from file to sync across workers
+    node_registry['connections'] = generate_default_connections()
+    save_node_registry()
+    sync_nodes_to_network()
+    return jsonify({
+        'status': 'ok',
+        'connections': node_registry['connections'],
+        'message': f'Regenerated {len(node_registry["connections"])} connections'
+    })
+
+
+@app.route('/api/connections/toggle', methods=['POST'])
+def toggle_connection():
+    """Toggle a connection's enabled state."""
+    load_node_registry()  # Reload from file to sync across workers
+
+    data = request.json
+    source = data.get('source')
+    target = data.get('target')
+    carrier = data.get('carrier')
+
+    if not source or not target:
+        return jsonify({'status': 'error', 'message': 'Source and target required'}), 400
+
+    # Find and toggle the connection
+    connections = node_registry.get('connections', [])
+    for conn in connections:
+        if conn['source'] == source and conn['target'] == target:
+            if carrier and conn['carrier'] != carrier:
+                continue
+            conn['enabled'] = not conn.get('enabled', True)
+            save_node_registry()
+            sync_nodes_to_network()
+            return jsonify({
+                'status': 'ok',
+                'connection': conn,
+                'message': f'Connection {"enabled" if conn["enabled"] else "disabled"}'
+            })
+
+    return jsonify({'status': 'error', 'message': 'Connection not found'}), 404
+
+
+@app.route('/api/connections', methods=['POST'])
+def add_connection():
+    """Add a new connection."""
+    load_node_registry()  # Reload from file to sync across workers
+
+    data = request.json
+    source = data.get('source')
+    target = data.get('target')
+    carrier = data.get('carrier', 'electricity')
+
+    if not source or not target:
+        return jsonify({'status': 'error', 'message': 'Source and target required'}), 400
+
+    # Check if connection already exists
+    connections = node_registry.get('connections', [])
+    for conn in connections:
+        if conn['source'] == source and conn['target'] == target and conn['carrier'] == carrier:
+            return jsonify({'status': 'error', 'message': 'Connection already exists'}), 400
+
+    # Add new connection
+    new_conn = {
+        'source': source,
+        'target': target,
+        'carrier': carrier,
+        'enabled': True
+    }
+    connections.append(new_conn)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'connection': new_conn})
+
+
+@app.route('/api/connections', methods=['DELETE'])
+def delete_connection():
+    """Delete a connection."""
+    load_node_registry()  # Reload from file to sync across workers
+
+    data = request.json
+    source = data.get('source')
+    target = data.get('target')
+    carrier = data.get('carrier')
+
+    if not source or not target:
+        return jsonify({'status': 'error', 'message': 'Source and target required'}), 400
+
+    connections = node_registry.get('connections', [])
+    for i, conn in enumerate(connections):
+        if conn['source'] == source and conn['target'] == target:
+            if carrier and conn['carrier'] != carrier:
+                continue
+            del connections[i]
+            save_node_registry()
+            sync_nodes_to_network()
+            return jsonify({'status': 'ok', 'message': 'Connection deleted'})
+
+    return jsonify({'status': 'error', 'message': 'Connection not found'}), 404
+
+
+@app.route('/api/layout', methods=['GET'])
+def get_layout():
+    """Get current node positions as a layout."""
+    load_node_registry()  # Reload from file to sync across workers
+    layout = {}
+    for gen in node_registry['generators']:
+        layout[gen['name']] = gen.get('position', [0, 2, 0])
+    for trans in node_registry['transformers']:
+        layout[trans['name']] = trans.get('position', [-2, 0, 0])
+    for cons in node_registry['consumers']:
+        layout[cons['name']] = cons.get('position', [0, -2, 0])
+    for batt in node_registry.get('batteries', []):
+        layout[batt['name']] = batt.get('position', [3, 0, 0])
+    for h2s in node_registry.get('h2_storage', []):
+        layout[h2s['name']] = h2s.get('position', [-3, -1, 0])
+    return jsonify(layout)
+
+
+@app.route('/api/layout', methods=['POST'])
+def update_layout():
+    """Update node positions from a layout dict."""
+    data = request.json
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No layout data provided'}), 400
+
+    # Update positions in each node collection
+    for gen in node_registry['generators']:
+        if gen['name'] in data:
+            gen['position'] = data[gen['name']]
+    for trans in node_registry['transformers']:
+        if trans['name'] in data:
+            trans['position'] = data[trans['name']]
+    for cons in node_registry['consumers']:
+        if cons['name'] in data:
+            cons['position'] = data[cons['name']]
+    for batt in node_registry.get('batteries', []):
+        if batt['name'] in data:
+            batt['position'] = data[batt['name']]
+    for h2s in node_registry.get('h2_storage', []):
+        if h2s['name'] in data:
+            h2s['position'] = data[h2s['name']]
+
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'message': f'Updated {len(data)} node positions'})
 
 
 @app.route('/api/blender/export', methods=['POST'])

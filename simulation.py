@@ -660,17 +660,39 @@ class HydrogenSystemSimulation:
                     flows[f'{cons_config.name}_hydrogen'] = cons_total * cons_config.cd_h_per_bundle
                     flows[f'{cons_config.name}_electricity'] = cons_total * cons_config.cd_e_per_bundle
 
-        # Battery storage state
+        # Battery storage state - extract storage content (state of charge)
         for batt_config in self.config.batteries:
             batt_data = views.node(self.results, batt_config.name)
             if batt_data is not None and 'sequences' in batt_data:
-                flows[f'{batt_config.name}_storage'] = batt_data['sequences']
+                batt_df = batt_data['sequences']
+                # Find the storage content column
+                storage_col = None
+                for col in batt_df.columns:
+                    if 'storage_content' in str(col) or 'capacity' in str(col):
+                        storage_col = col
+                        break
+                if storage_col is not None:
+                    flows[f'{batt_config.name}_storage'] = batt_df[storage_col].tolist()
+                else:
+                    # Fall back to full DataFrame if no storage_content found
+                    flows[f'{batt_config.name}_storage'] = batt_df
 
-        # H2 storage state
+        # H2 storage state - extract storage content
         for h2_config in self.config.h2_storage:
             h2_data = views.node(self.results, h2_config.name)
             if h2_data is not None and 'sequences' in h2_data:
-                flows[f'{h2_config.name}_storage'] = h2_data['sequences']
+                h2_df = h2_data['sequences']
+                # Find the storage content column
+                storage_col = None
+                for col in h2_df.columns:
+                    if 'storage_content' in str(col) or 'capacity' in str(col):
+                        storage_col = col
+                        break
+                if storage_col is not None:
+                    flows[f'{h2_config.name}_storage'] = h2_df[storage_col].tolist()
+                else:
+                    # Fall back to full DataFrame if no storage_content found
+                    flows[f'{h2_config.name}_storage'] = h2_df
 
         return flows
 
@@ -913,6 +935,238 @@ class HydrogenSystemSimulation:
 
         # Total cost per kWh of hydrogen = electricity needed * elec_cost + transform_cost
         return (elec_cost + transform_cost) / efficiency
+
+    def get_detailed_log(self) -> List[Dict[str, Any]]:
+        """Get detailed per-timestep log of all node activities."""
+        if self.results is None:
+            raise RuntimeError("No results available. Call solve() first.")
+
+        log_entries = []
+
+        for t in range(self.config.periods):
+            entry = {
+                'timestep': t,
+                'hour': t,
+                'generators': {},
+                'transformers': {},
+                'consumers': {},
+                'storage': {},
+                'buses': {},
+                'excess': {}
+            }
+
+            # Generator data
+            for gen_config in self.config.generators:
+                gen_data = views.node(self.results, gen_config.name)
+                if gen_data is not None and 'sequences' in gen_data:
+                    gen_df = gen_data['sequences']
+                    # Sum all outflows for this timestep
+                    production = 0.0
+                    for col in gen_df.columns:
+                        if t < len(gen_df):
+                            production += float(gen_df.iloc[t][col])
+                    entry['generators'][gen_config.name] = {
+                        'production_kW': round(production, 2),
+                        'cost_ct': round(production * gen_config.cost, 2),
+                        'profile_type': gen_config.profile_type,
+                        'capacity_kW': gen_config.capacity
+                    }
+
+            # Grid backup
+            grid_data = views.node(self.results, 'Grid')
+            if grid_data is not None and 'sequences' in grid_data:
+                grid_df = grid_data['sequences']
+                grid_supply = 0.0
+                for col in grid_df.columns:
+                    if t < len(grid_df):
+                        grid_supply += float(grid_df.iloc[t][col])
+                entry['generators']['Grid'] = {
+                    'supply_kW': round(grid_supply, 2),
+                    'cost_ct': round(grid_supply * self.config.grid_cost, 2)
+                }
+
+            # Transformer data - extract from bus flows for reliability
+            for trans_config in self.config.transformers:
+                input_flow = 0.0
+                output_flow = 0.0
+
+                # Method 1: Try views.node on the transformer directly
+                trans_data = views.node(self.results, trans_config.name)
+                if trans_data is not None and 'sequences' in trans_data:
+                    trans_df = trans_data['sequences']
+                    for col in trans_df.columns:
+                        if t < len(trans_df):
+                            val = float(trans_df.iloc[t][col])
+                            col_str = str(col)
+                            # Check direction: (source, target) in column tuple
+                            if isinstance(col, tuple) and len(col) >= 1:
+                                flow_tuple = col[0] if isinstance(col[0], tuple) else col
+                                if isinstance(flow_tuple, tuple) and len(flow_tuple) >= 2:
+                                    source, target = flow_tuple[0], flow_tuple[1]
+                                    if target == trans_config.name:  # Inflow
+                                        input_flow += val
+                                    elif source == trans_config.name:  # Outflow
+                                        output_flow += val
+
+                # Method 2: Fallback - query from electricity bus if no data found
+                if input_flow == 0.0 and output_flow == 0.0:
+                    elec_bus_data = views.node(self.results, 'bus_electricity')
+                    if elec_bus_data is not None and 'sequences' in elec_bus_data:
+                        elec_df = elec_bus_data['sequences']
+                        for col in elec_df.columns:
+                            if t < len(elec_df):
+                                col_str = str(col)
+                                if trans_config.name in col_str and 'flow' in col_str:
+                                    val = float(elec_df.iloc[t][col])
+                                    # Flow TO transformer = input
+                                    if isinstance(col, tuple) and isinstance(col[0], tuple):
+                                        if col[0][1] == trans_config.name:
+                                            input_flow += val
+
+                    h2_bus_data = views.node(self.results, 'bus_hydrogen')
+                    if h2_bus_data is not None and 'sequences' in h2_bus_data:
+                        h2_df = h2_bus_data['sequences']
+                        for col in h2_df.columns:
+                            if t < len(h2_df):
+                                col_str = str(col)
+                                if trans_config.name in col_str and 'flow' in col_str:
+                                    val = float(h2_df.iloc[t][col])
+                                    # Flow FROM transformer = output
+                                    if isinstance(col, tuple) and isinstance(col[0], tuple):
+                                        if col[0][0] == trans_config.name:
+                                            output_flow += val
+
+                entry['transformers'][trans_config.name] = {
+                    'input_kW': round(input_flow, 2),
+                    'output_kg': round(output_flow, 2),
+                    'efficiency': trans_config.efficiency,
+                    'cost_ct': round(input_flow * trans_config.cost, 2)
+                }
+
+            # Consumer data with tranche details
+            for cons_config in self.config.consumers:
+                tranches = self._consumer_tranches.get(cons_config.name, [])
+                consumer_entry = {
+                    'consumer_type': cons_config.consumer_type,
+                    'carrier': cons_config.carrier,
+                    'total_consumption': 0.0,
+                    'total_utility': 0.0,
+                    'tranches': []
+                }
+
+                for i, (qty, wtp) in enumerate(tranches):
+                    sink_data = views.node(self.results, f'{cons_config.name}_T{i+1}')
+                    if sink_data is not None and 'sequences' in sink_data:
+                        sink_df = sink_data['sequences']
+                        consumption = 0.0
+                        for col in sink_df.columns:
+                            if t < len(sink_df):
+                                consumption += float(sink_df.iloc[t][col])
+                        utility = consumption * wtp
+                        consumer_entry['tranches'].append({
+                            'tranche': i + 1,
+                            'consumption': round(consumption, 3),
+                            'max_qty': qty,
+                            'wtp_ct': round(wtp, 2),
+                            'utility_ct': round(utility, 2)
+                        })
+                        consumer_entry['total_consumption'] += consumption
+                        consumer_entry['total_utility'] += utility
+
+                consumer_entry['total_consumption'] = round(consumer_entry['total_consumption'], 3)
+                consumer_entry['total_utility'] = round(consumer_entry['total_utility'], 2)
+
+                # Add units based on carrier
+                if cons_config.carrier == 'hydrogen':
+                    consumer_entry['unit'] = 'kg'
+                elif cons_config.carrier == 'electricity':
+                    consumer_entry['unit'] = 'kWh'
+                else:
+                    consumer_entry['unit'] = 'bundles'
+
+                entry['consumers'][cons_config.name] = consumer_entry
+
+            # Battery storage
+            for batt_config in self.config.batteries:
+                batt_data = views.node(self.results, batt_config.name)
+                if batt_data is not None and 'sequences' in batt_data:
+                    batt_df = batt_data['sequences']
+                    charge = 0.0
+                    discharge = 0.0
+                    storage_level = 0.0
+                    for col in batt_df.columns:
+                        if t < len(batt_df):
+                            val = float(batt_df.iloc[t][col])
+                            col_str = str(col)
+                            if 'storage_content' in col_str or 'capacity' in col_str:
+                                storage_level = val
+                            elif 'bus_electricity' in col_str:
+                                # Check direction from column tuple
+                                if isinstance(col, tuple) and len(col) >= 2:
+                                    if col[0] == batt_config.name:
+                                        discharge += val
+                                    else:
+                                        charge += val
+                    entry['storage'][batt_config.name] = {
+                        'type': 'battery',
+                        'charge_kW': round(charge, 2),
+                        'discharge_kW': round(discharge, 2),
+                        'level_kWh': round(storage_level, 2),
+                        'capacity_kWh': batt_config.capacity,
+                        'level_pct': round(storage_level / batt_config.capacity * 100, 1) if batt_config.capacity > 0 else 0
+                    }
+
+            # H2 storage
+            for h2_config in self.config.h2_storage:
+                h2_data = views.node(self.results, h2_config.name)
+                if h2_data is not None and 'sequences' in h2_data:
+                    h2_df = h2_data['sequences']
+                    injection = 0.0
+                    withdrawal = 0.0
+                    storage_level = 0.0
+                    for col in h2_df.columns:
+                        if t < len(h2_df):
+                            val = float(h2_df.iloc[t][col])
+                            col_str = str(col)
+                            if 'storage_content' in col_str or 'capacity' in col_str:
+                                storage_level = val
+                            elif 'bus_hydrogen' in col_str:
+                                if isinstance(col, tuple) and len(col) >= 2:
+                                    if col[0] == h2_config.name:
+                                        withdrawal += val
+                                    else:
+                                        injection += val
+                    entry['storage'][h2_config.name] = {
+                        'type': 'h2_tank',
+                        'injection_kg': round(injection, 2),
+                        'withdrawal_kg': round(withdrawal, 2),
+                        'level_kg': round(storage_level, 2),
+                        'capacity_kg': h2_config.capacity,
+                        'level_pct': round(storage_level / h2_config.capacity * 100, 1) if h2_config.capacity > 0 else 0
+                    }
+
+            # Excess/curtailment
+            excess_elec_data = views.node(self.results, 'Excess_Electricity')
+            if excess_elec_data is not None and 'sequences' in excess_elec_data:
+                excess_df = excess_elec_data['sequences']
+                excess = 0.0
+                for col in excess_df.columns:
+                    if t < len(excess_df):
+                        excess += float(excess_df.iloc[t][col])
+                entry['excess']['electricity_kW'] = round(excess, 2)
+
+            excess_h2_data = views.node(self.results, 'Excess_Hydrogen')
+            if excess_h2_data is not None and 'sequences' in excess_h2_data:
+                excess_df = excess_h2_data['sequences']
+                excess = 0.0
+                for col in excess_df.columns:
+                    if t < len(excess_df):
+                        excess += float(excess_df.iloc[t][col])
+                entry['excess']['hydrogen_kg'] = round(excess, 2)
+
+            log_entries.append(entry)
+
+        return log_entries
 
     def export_results_to_json(self, filepath: str) -> None:
         """Export simulation results to JSON for Blender visualization."""
