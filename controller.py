@@ -939,6 +939,51 @@ def sync_from_blender():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# =============================================================================
+# Deploy Webhook (for VPS updates without SSH key)
+# =============================================================================
+
+@app.route('/api/deploy', methods=['POST'])
+def deploy_webhook():
+    """
+    Pull latest code from GitHub and reload.
+    Call this endpoint to update the VPS without SSH access.
+    """
+    try:
+        import subprocess as sp
+
+        # Pull latest from GitHub
+        result = sp.run(
+            ['git', 'pull', 'origin', 'main'],
+            cwd=SCRIPT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        output = result.stdout + result.stderr
+
+        if result.returncode == 0:
+            # Reload node registry in case it changed
+            load_node_registry()
+
+            return jsonify({
+                'status': 'ok',
+                'message': 'Deployed successfully! Restart service for full effect.',
+                'output': output,
+                'hint': 'Run: sudo systemctl restart hydrogen'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Git pull failed',
+                'output': output
+            }), 500
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("  Hydrogen Simulation Controller")
