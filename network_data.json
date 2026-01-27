@@ -1,0 +1,61 @@
+{
+  "nodes": [
+    {
+      "name": "Alpha",
+      "node_type": "producer",
+      "carrier": "electricity",
+      "position": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "name": "Bravo",
+      "node_type": "converter",
+      "carrier": "both",
+      "position": [
+        0.6112068183878865,
+        -2.088,
+        0
+      ]
+    },
+    {
+      "name": "Charlie",
+      "node_type": "consumer",
+      "carrier": "hydrogen",
+      "position": [
+        -2,
+        -2,
+        0
+      ]
+    },
+    {
+      "name": "Delta",
+      "node_type": "consumer",
+      "carrier": "electricity",
+      "position": [
+        2,
+        0,
+        0
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "Alpha",
+      "target": "Bravo",
+      "carrier": "electricity"
+    },
+    {
+      "source": "Alpha",
+      "target": "Delta",
+      "carrier": "electricity"
+    },
+    {
+      "source": "Bravo",
+      "target": "Charlie",
+      "carrier": "hydrogen"
+    }
+  ]
+}

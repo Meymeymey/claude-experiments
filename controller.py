@@ -28,14 +28,33 @@ except ImportError as e:
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app)
 
-# Store current configuration
+# Store current configuration (price-based model)
 current_config = {
     'periods': 24,
-    'alpha_capacity': 100.0,
-    'bravo_capacity': 50.0,
-    'bravo_efficiency': 0.7,
-    'charlie_demand': 10.0,
-    'delta_demand': 30.0,
+    # Alpha: Electricity producer
+    'alpha_capacity': 100.0,      # Max capacity (kW)
+    'alpha_cost': 8.0,            # Production cost (ct/kWh)
+    # Bravo: Electrolyzer
+    'bravo_capacity': 50.0,       # Max output (kW hydrogen)
+    'bravo_efficiency': 0.7,      # 70% efficiency
+    'bravo_cost': 1.5,            # Transformation cost (ct/kWh)
+    # Grid backup
+    'grid_cost': 15.0,            # Grid electricity cost (ct/kWh)
+    # Consumer demand tranches (stored as JSON-serializable lists)
+    # Charlie (hydrogen): [(quantity, willingness_to_pay), ...]
+    'charlie_tranches': [
+        [5.0, 25.0],   # First 5 kg/period @ 25 ct/kg
+        [5.0, 18.0],   # Next 5 kg/period @ 18 ct/kg
+        [5.0, 12.0],   # Next 5 kg/period @ 12 ct/kg
+        [10.0, 6.0],   # Beyond @ 6 ct/kg
+    ],
+    # Delta (electricity): [(quantity, willingness_to_pay), ...]
+    'delta_tranches': [
+        [10.0, 20.0],  # First 10 kWh/period @ 20 ct/kWh
+        [10.0, 14.0],  # Next 10 kWh @ 14 ct/kWh
+        [15.0, 10.0],  # Next 15 kWh @ 10 ct/kWh
+        [20.0, 5.0],   # Beyond @ 5 ct/kWh
+    ],
 }
 
 # Store last simulation results
@@ -67,7 +86,11 @@ def set_config():
     # Update only provided values
     for key in current_config:
         if key in data:
-            current_config[key] = float(data[key])
+            # Handle tranches as lists, others as floats
+            if key in ('charlie_tranches', 'delta_tranches'):
+                current_config[key] = data[key]
+            else:
+                current_config[key] = float(data[key])
 
     return jsonify({'status': 'ok', 'config': current_config})
 
@@ -131,13 +154,20 @@ def run_simulation():
         }), 503
 
     try:
+        # Convert tranche lists to tuples for SimulationConfig
+        charlie_tranches = [tuple(t) for t in current_config['charlie_tranches']]
+        delta_tranches = [tuple(t) for t in current_config['delta_tranches']]
+
         config = SimulationConfig(
             periods=int(current_config['periods']),
             alpha_capacity=current_config['alpha_capacity'],
+            alpha_cost=current_config['alpha_cost'],
             bravo_capacity=current_config['bravo_capacity'],
             bravo_efficiency=current_config['bravo_efficiency'],
-            charlie_demand=current_config['charlie_demand'],
-            delta_demand=current_config['delta_demand'],
+            bravo_cost=current_config['bravo_cost'],
+            grid_cost=current_config['grid_cost'],
+            charlie_tranches=charlie_tranches,
+            delta_tranches=delta_tranches,
         )
 
         sim = HydrogenSystemSimulation(config)
@@ -147,16 +177,30 @@ def run_simulation():
         # Get results
         summary = sim.get_summary()
         flows = sim.get_flow_results()
+        price_analysis = sim.get_price_analysis()
 
-        # Convert flows to serializable format
+        # Convert flows to serializable format (filter out NaN values)
+        import math
         flow_data = {}
         for name, df in flows.items():
-            flow_data[name] = df.values.tolist()
+            # Replace NaN with None for JSON compatibility, then filter
+            values = df.values.tolist()
+            # Filter out rows containing NaN
+            clean_values = []
+            for row in values:
+                if isinstance(row, list):
+                    if not any(isinstance(v, float) and math.isnan(v) for v in row):
+                        clean_values.append(row)
+                else:
+                    if not (isinstance(row, float) and math.isnan(row)):
+                        clean_values.append(row)
+            flow_data[name] = clean_values
 
         last_results = {
             'status': 'ok',
             'summary': summary,
             'flows': flow_data,
+            'price_analysis': price_analysis,
             'config': current_config.copy()
         }
 

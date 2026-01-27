@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -53,30 +53,38 @@
             gap: 10px;
         }
 
+        .card h3 {
+            color: #888;
+            margin: 15px 0 10px 0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
         .card h2 .icon {
             font-size: 1.4rem;
         }
 
         /* Parameter inputs */
         .param-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
 
         .param-group label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             color: #aaa;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         .param-group input {
             width: 100%;
-            padding: 10px;
+            padding: 8px 10px;
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 6px;
             background: rgba(0, 0, 0, 0.3);
             color: #fff;
-            font-size: 1rem;
+            font-size: 0.95rem;
         }
 
         .param-group input:focus {
@@ -87,6 +95,12 @@
         .param-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .param-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
         }
 
@@ -151,7 +165,7 @@
         /* Network visualization */
         .network-canvas {
             width: 100%;
-            height: 250px;
+            height: 200px;
             background: rgba(0, 0, 0, 0.3);
             border-radius: 8px;
             position: relative;
@@ -160,13 +174,13 @@
 
         .node {
             position: absolute;
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             cursor: move;
             transition: transform 0.1s;
         }
@@ -193,44 +207,83 @@
             transform: scale(1.1);
         }
 
-        .pipe {
-            position: absolute;
-            height: 4px;
-            transform-origin: left center;
-            pointer-events: none;
-        }
-
-        .pipe.electricity {
-            background: linear-gradient(90deg, #f0c040, #ffd700);
-        }
-
-        .pipe.hydrogen {
-            background: linear-gradient(90deg, #3498db, #5dade2);
-        }
-
         /* Results */
         .results-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 8px;
+        }
+
+        .results-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
         }
 
         .result-item {
             background: rgba(0, 0, 0, 0.2);
-            padding: 12px;
+            padding: 10px;
             border-radius: 6px;
         }
 
         .result-item .label {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: #888;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .result-item .value {
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: #4ecca3;
+        }
+
+        .result-item .value.negative {
+            color: #e74c3c;
+        }
+
+        .result-item .value.positive {
+            color: #4ecca3;
+        }
+
+        .result-item .unit {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        /* Tranches table */
+        .tranches-table {
+            width: 100%;
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+
+        .tranches-table th, .tranches-table td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tranches-table th {
+            color: #888;
+            font-weight: normal;
+        }
+
+        .tranches-table .utilization {
+            width: 80px;
+        }
+
+        .utilization-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .utilization-fill {
+            height: 100%;
+            background: #4ecca3;
+            transition: width 0.3s;
         }
 
         /* Status */
@@ -238,7 +291,7 @@
             padding: 10px;
             border-radius: 6px;
             margin-top: 15px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         .status.success {
@@ -277,6 +330,11 @@
             color: #666;
             font-size: 0.9rem;
         }
+
+        /* Card spanning full width */
+        .card-wide {
+            grid-column: 1 / -1;
+        }
     </style>
 </head>
 <body>
@@ -286,38 +344,45 @@
         <div class="grid">
             <!-- Parameters Card -->
             <div class="card">
-                <h2><span class="icon">⚡</span> Simulation Parameters</h2>
+                <h2><span class="icon">⚡</span> Production & Costs</h2>
 
                 <div class="param-group">
                     <label>Simulation Periods (hours)</label>
                     <input type="number" id="periods" value="24" min="1" max="168">
                 </div>
 
+                <h3>Alpha - Electricity Producer</h3>
                 <div class="param-row">
                     <div class="param-group">
-                        <label>Alpha Capacity (kW)</label>
+                        <label>Capacity (kW)</label>
                         <input type="number" id="alpha_capacity" value="100" min="0" step="10">
                     </div>
                     <div class="param-group">
-                        <label>Delta Demand (kW)</label>
-                        <input type="number" id="delta_demand" value="30" min="0" step="5">
+                        <label>Cost (ct/kWh)</label>
+                        <input type="number" id="alpha_cost" value="8" min="0" step="0.5">
                     </div>
                 </div>
 
-                <div class="param-row">
+                <h3>Bravo - Electrolyzer</h3>
+                <div class="param-row-3">
                     <div class="param-group">
-                        <label>Bravo Capacity (kW)</label>
+                        <label>Capacity (kW)</label>
                         <input type="number" id="bravo_capacity" value="50" min="0" step="10">
                     </div>
                     <div class="param-group">
-                        <label>Bravo Efficiency (%)</label>
+                        <label>Efficiency (%)</label>
                         <input type="number" id="bravo_efficiency" value="70" min="0" max="100" step="5">
+                    </div>
+                    <div class="param-group">
+                        <label>Cost (ct/kWh)</label>
+                        <input type="number" id="bravo_cost" value="1.5" min="0" step="0.1">
                     </div>
                 </div>
 
+                <h3>Grid Backup</h3>
                 <div class="param-group">
-                    <label>Charlie H₂ Demand (kg/h)</label>
-                    <input type="number" id="charlie_demand" value="10" min="0" step="1">
+                    <label>Grid Electricity Cost (ct/kWh)</label>
+                    <input type="number" id="grid_cost" value="15" min="0" step="1">
                 </div>
 
                 <div class="btn-group">
@@ -329,30 +394,123 @@
                 <div id="sim-status"></div>
             </div>
 
-            <!-- Results Card -->
+            <!-- Consumer Utility Card -->
             <div class="card">
-                <h2><span class="icon">📊</span> Simulation Results</h2>
+                <h2><span class="icon">📈</span> Consumer Utility (Willingness to Pay)</h2>
 
-                <div class="results-grid">
-                    <div class="result-item">
-                        <div class="label">Electricity Produced</div>
-                        <div class="value" id="res-elec-produced">--</div>
+                <h3>Delta - Electricity Consumer</h3>
+                <p style="color:#666;font-size:0.8rem;margin-bottom:8px;">Diminishing marginal utility tranches</p>
+                <div class="param-row">
+                    <div class="param-group">
+                        <label>T1: Qty (kWh/h) @ Price (ct)</label>
+                        <input type="text" id="delta_t1" value="10, 20" placeholder="qty, price">
                     </div>
-                    <div class="result-item">
-                        <div class="label">To Electrolyzer</div>
-                        <div class="value" id="res-to-electrolyzer">--</div>
+                    <div class="param-group">
+                        <label>T2: Qty @ Price</label>
+                        <input type="text" id="delta_t2" value="10, 14" placeholder="qty, price">
                     </div>
-                    <div class="result-item">
-                        <div class="label">H₂ Produced</div>
-                        <div class="value" id="res-h2-consumed">--</div>
+                </div>
+                <div class="param-row">
+                    <div class="param-group">
+                        <label>T3: Qty @ Price</label>
+                        <input type="text" id="delta_t3" value="15, 10" placeholder="qty, price">
                     </div>
-                    <div class="result-item">
-                        <div class="label">Elec Consumed</div>
-                        <div class="value" id="res-elec-consumed">--</div>
+                    <div class="param-group">
+                        <label>T4: Qty @ Price</label>
+                        <input type="text" id="delta_t4" value="20, 5" placeholder="qty, price">
                     </div>
                 </div>
 
+                <h3>Charlie - Hydrogen Consumer</h3>
+                <div class="param-row">
+                    <div class="param-group">
+                        <label>T1: Qty (kg/h) @ Price (ct)</label>
+                        <input type="text" id="charlie_t1" value="5, 25" placeholder="qty, price">
+                    </div>
+                    <div class="param-group">
+                        <label>T2: Qty @ Price</label>
+                        <input type="text" id="charlie_t2" value="5, 18" placeholder="qty, price">
+                    </div>
+                </div>
+                <div class="param-row">
+                    <div class="param-group">
+                        <label>T3: Qty @ Price</label>
+                        <input type="text" id="charlie_t3" value="5, 12" placeholder="qty, price">
+                    </div>
+                    <div class="param-group">
+                        <label>T4: Qty @ Price</label>
+                        <input type="text" id="charlie_t4" value="10, 6" placeholder="qty, price">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Economic Results Card -->
+            <div class="card">
+                <h2><span class="icon">💰</span> Economic Results</h2>
+
+                <div class="results-grid-3">
+                    <div class="result-item">
+                        <div class="label">Total Costs</div>
+                        <div class="value negative" id="res-costs">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Total Utility</div>
+                        <div class="value positive" id="res-utility">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Net Welfare</div>
+                        <div class="value" id="res-welfare">--</div>
+                    </div>
+                </div>
+
+                <h3>Production</h3>
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="label">Alpha Production</div>
+                        <div class="value" id="res-alpha">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Grid Supply</div>
+                        <div class="value" id="res-grid">--</div>
+                    </div>
+                </div>
+
+                <h3>Consumption</h3>
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="label">Delta Electricity</div>
+                        <div class="value" id="res-delta">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Charlie Hydrogen</div>
+                        <div class="value" id="res-charlie">--</div>
+                    </div>
+                </div>
+
+                <h3>Marginal Cost</h3>
+                <div class="result-item">
+                    <div class="label">Hydrogen Production Cost</div>
+                    <div class="value" id="res-h2-cost">--</div>
+                </div>
+
                 <div id="results-status"></div>
+            </div>
+
+            <!-- Tranche Utilization Card -->
+            <div class="card">
+                <h2><span class="icon">📊</span> Demand Tranche Utilization</h2>
+
+                <h3>Delta (Electricity)</h3>
+                <table class="tranches-table" id="delta-tranches-table">
+                    <tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>
+                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
+                </table>
+
+                <h3>Charlie (Hydrogen)</h3>
+                <table class="tranches-table" id="charlie-tranches-table">
+                    <tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>
+                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
+                </table>
             </div>
 
             <!-- Network Card -->
@@ -360,9 +518,7 @@
                 <h2><span class="icon">🔗</span> Network Topology</h2>
 
                 <div class="network-canvas" id="network-canvas">
-                    <!-- Pipes will be drawn here -->
                     <svg id="pipes-svg" style="position:absolute;width:100%;height:100%;pointer-events:none;"></svg>
-                    <!-- Nodes will be positioned here -->
                 </div>
 
                 <div id="network-status"></div>
@@ -372,7 +528,7 @@
             <div class="card">
                 <h2><span class="icon">🎨</span> Blender Integration</h2>
 
-                <p style="color: #888; margin-bottom: 15px; font-size: 0.9rem;">
+                <p style="color: #888; margin-bottom: 15px; font-size: 0.85rem;">
                     Sync node positions between this controller and Blender.
                 </p>
 
@@ -384,24 +540,23 @@
 
                 <div class="btn-group">
                     <button class="btn btn-secondary" onclick="exportToBlender()">
-                        📤 Export to Blender
+                        📤 Export
                     </button>
                     <button class="btn btn-secondary" onclick="syncFromBlender()">
-                        📥 Sync from Blender
+                        📥 Sync
                     </button>
                 </div>
 
                 <div id="blender-status"></div>
 
-                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.85rem; color: #888;">
-                    <strong>In Blender console:</strong><br>
-                    <code style="color: #4ecca3;">sync_from_blender()</code>
+                <div style="margin-top: 15px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.8rem; color: #888;">
+                    <strong>In Blender:</strong> <code style="color: #4ecca3;">sync_from_blender()</code>
                 </div>
             </div>
         </div>
 
         <div class="footer">
-            Hydrogen System Simulation | NetworkX + oemof + Blender
+            Hydrogen System Simulation | Price-Based Economics Model
         </div>
     </div>
 
@@ -429,6 +584,13 @@
             renderNetwork();
         });
 
+        // Parse tranche input "qty, price" -> [qty, price]
+        function parseTranche(inputId) {
+            const val = document.getElementById(inputId).value;
+            const parts = val.split(',').map(s => parseFloat(s.trim()));
+            return [parts[0] || 0, parts[1] || 0];
+        }
+
         // Load configuration
         async function loadConfig() {
             try {
@@ -437,10 +599,25 @@
 
                 document.getElementById('periods').value = config.periods;
                 document.getElementById('alpha_capacity').value = config.alpha_capacity;
+                document.getElementById('alpha_cost').value = config.alpha_cost;
                 document.getElementById('bravo_capacity').value = config.bravo_capacity;
                 document.getElementById('bravo_efficiency').value = config.bravo_efficiency * 100;
-                document.getElementById('charlie_demand').value = config.charlie_demand;
-                document.getElementById('delta_demand').value = config.delta_demand;
+                document.getElementById('bravo_cost').value = config.bravo_cost;
+                document.getElementById('grid_cost').value = config.grid_cost;
+
+                // Load tranches
+                if (config.delta_tranches) {
+                    config.delta_tranches.forEach((t, i) => {
+                        const el = document.getElementById(`delta_t${i+1}`);
+                        if (el) el.value = `${t[0]}, ${t[1]}`;
+                    });
+                }
+                if (config.charlie_tranches) {
+                    config.charlie_tranches.forEach((t, i) => {
+                        const el = document.getElementById(`charlie_t${i+1}`);
+                        if (el) el.value = `${t[0]}, ${t[1]}`;
+                    });
+                }
             } catch (e) {
                 console.error('Failed to load config:', e);
             }
@@ -453,19 +630,12 @@
                 const network = await res.json();
 
                 if (network.nodes) {
-                    // Convert 3D positions to 2D canvas positions
-                    const canvas = document.getElementById('network-canvas');
-                    const rect = canvas.getBoundingClientRect();
-
                     network.nodes.forEach(node => {
                         if (nodes[node.name]) {
-                            // Map from coordinate space to 0-1
-                            // Assuming x: -3 to 3, y: -3 to 3
                             nodes[node.name].x = (node.position[0] + 3) / 6;
-                            nodes[node.name].y = 1 - (node.position[1] + 3) / 6; // Flip Y
+                            nodes[node.name].y = 1 - (node.position[1] + 3) / 6;
                         }
                     });
-
                     renderNetwork();
                 }
             } catch (e) {
@@ -479,11 +649,10 @@
             const svg = document.getElementById('pipes-svg');
             const rect = canvas.getBoundingClientRect();
 
-            // Clear existing nodes (keep SVG)
             canvas.querySelectorAll('.node').forEach(n => n.remove());
             svg.innerHTML = '';
 
-            // Draw pipes first
+            // Draw pipes
             edges.forEach(edge => {
                 const source = nodes[edge.source];
                 const target = nodes[edge.target];
@@ -509,13 +678,10 @@
                 const el = document.createElement('div');
                 el.className = `node ${node.type}`;
                 el.textContent = name;
-                el.style.left = `${node.x * rect.width - 30}px`;
-                el.style.top = `${node.y * rect.height - 30}px`;
-
-                // Make draggable
+                el.style.left = `${node.x * rect.width - 25}px`;
+                el.style.top = `${node.y * rect.height - 25}px`;
                 el.addEventListener('mousedown', startDrag);
                 el.dataset.name = name;
-
                 canvas.appendChild(el);
             });
         }
@@ -527,54 +693,39 @@
         function startDrag(e) {
             dragging = e.target;
             const rect = dragging.getBoundingClientRect();
-            dragOffset.x = e.clientX - rect.left - 30;
-            dragOffset.y = e.clientY - rect.top - 30;
-
+            dragOffset.x = e.clientX - rect.left - 25;
+            dragOffset.y = e.clientY - rect.top - 25;
             document.addEventListener('mousemove', doDrag);
             document.addEventListener('mouseup', stopDrag);
         }
 
         function doDrag(e) {
             if (!dragging) return;
-
             const canvas = document.getElementById('network-canvas');
             const rect = canvas.getBoundingClientRect();
-
             let x = (e.clientX - rect.left - dragOffset.x) / rect.width;
             let y = (e.clientY - rect.top - dragOffset.y) / rect.height;
-
-            // Clamp
             x = Math.max(0.1, Math.min(0.9, x));
             y = Math.max(0.1, Math.min(0.9, y));
-
             const name = dragging.dataset.name;
             nodes[name].x = x;
             nodes[name].y = y;
-
             renderNetwork();
         }
 
         function stopDrag() {
-            if (dragging) {
-                updateNetworkPositions();
-            }
+            if (dragging) updateNetworkPositions();
             dragging = null;
             document.removeEventListener('mousemove', doDrag);
             document.removeEventListener('mouseup', stopDrag);
         }
 
-        // Update network positions on server
         async function updateNetworkPositions() {
             const networkNodes = Object.entries(nodes).map(([name, node]) => ({
                 name,
                 node_type: node.type,
-                carrier: node.type === 'producer' ? 'electricity' :
-                         node.type === 'converter' ? 'both' : 'hydrogen',
-                position: [
-                    (node.x * 6) - 3,  // Convert back to coordinate space
-                    ((1 - node.y) * 6) - 3,  // Flip Y back
-                    0
-                ]
+                carrier: node.type === 'producer' ? 'electricity' : node.type === 'converter' ? 'both' : 'hydrogen',
+                position: [(node.x * 6) - 3, ((1 - node.y) * 6) - 3, 0]
             }));
 
             try {
@@ -597,14 +748,27 @@
             btn.disabled = true;
             icon.innerHTML = '<div class="spinner"></div>';
 
-            // Update config first
+            // Build config with tranches
             const config = {
                 periods: parseInt(document.getElementById('periods').value),
                 alpha_capacity: parseFloat(document.getElementById('alpha_capacity').value),
+                alpha_cost: parseFloat(document.getElementById('alpha_cost').value),
                 bravo_capacity: parseFloat(document.getElementById('bravo_capacity').value),
                 bravo_efficiency: parseFloat(document.getElementById('bravo_efficiency').value) / 100,
-                charlie_demand: parseFloat(document.getElementById('charlie_demand').value),
-                delta_demand: parseFloat(document.getElementById('delta_demand').value)
+                bravo_cost: parseFloat(document.getElementById('bravo_cost').value),
+                grid_cost: parseFloat(document.getElementById('grid_cost').value),
+                delta_tranches: [
+                    parseTranche('delta_t1'),
+                    parseTranche('delta_t2'),
+                    parseTranche('delta_t3'),
+                    parseTranche('delta_t4')
+                ],
+                charlie_tranches: [
+                    parseTranche('charlie_t1'),
+                    parseTranche('charlie_t2'),
+                    parseTranche('charlie_t3'),
+                    parseTranche('charlie_t4')
+                ]
             };
 
             try {
@@ -619,18 +783,8 @@
 
                 if (data.status === 'ok') {
                     status.className = 'status success';
-                    status.textContent = 'Simulation completed successfully!';
-
-                    // Update results
-                    const s = data.summary;
-                    document.getElementById('res-elec-produced').textContent =
-                        (s.total_electricity_produced || 0).toFixed(1) + ' kWh';
-                    document.getElementById('res-to-electrolyzer').textContent =
-                        (s.total_electricity_to_hydrogen || 0).toFixed(1) + ' kWh';
-                    document.getElementById('res-h2-consumed').textContent =
-                        (s.total_hydrogen_consumed || 0).toFixed(1) + ' kg';
-                    document.getElementById('res-elec-consumed').textContent =
-                        (s.total_electricity_consumed || 0).toFixed(1) + ' kWh';
+                    status.textContent = 'Simulation completed!';
+                    updateResults(data);
                 } else {
                     throw new Error(data.message);
                 }
@@ -643,13 +797,62 @@
             icon.textContent = '▶';
         }
 
+        function updateResults(data) {
+            const s = data.summary;
+
+            // Economic results
+            document.getElementById('res-costs').textContent = (s.total_costs || 0).toFixed(0) + ' ct';
+            document.getElementById('res-utility').textContent = (s.total_utility || 0).toFixed(0) + ' ct';
+            document.getElementById('res-welfare').textContent = (s.total_welfare || 0).toFixed(0) + ' ct';
+            document.getElementById('res-welfare').className = 'value ' + (s.total_welfare >= 0 ? 'positive' : 'negative');
+
+            // Production
+            document.getElementById('res-alpha').textContent = (s.total_alpha_production || 0).toFixed(1) + ' kWh';
+            document.getElementById('res-grid').textContent = (s.total_grid_supply || 0).toFixed(1) + ' kWh';
+
+            // Consumption
+            document.getElementById('res-delta').textContent = (s.total_electricity_consumed || 0).toFixed(1) + ' kWh';
+            document.getElementById('res-charlie').textContent = (s.total_hydrogen_consumed || 0).toFixed(1) + ' kg';
+
+            // H2 marginal cost
+            if (data.price_analysis && data.price_analysis.hydrogen) {
+                document.getElementById('res-h2-cost').textContent =
+                    data.price_analysis.hydrogen.marginal_cost.toFixed(2) + ' ct/kWh';
+            }
+
+            // Tranche utilization tables
+            if (data.price_analysis) {
+                updateTrancheTable('delta-tranches-table', data.price_analysis.electricity.consumer_tranches, 'kWh');
+                updateTrancheTable('charlie-tranches-table', data.price_analysis.hydrogen.consumer_tranches, 'kg');
+            }
+        }
+
+        function updateTrancheTable(tableId, tranches, unit) {
+            const table = document.getElementById(tableId);
+            table.innerHTML = '<tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>';
+
+            tranches.forEach(t => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>T${t.tranche}</td>
+                    <td>${t.willingness_to_pay} ct</td>
+                    <td>${t.consumed.toFixed(1)} ${unit}</td>
+                    <td class="utilization">
+                        <div class="utilization-bar">
+                            <div class="utilization-fill" style="width:${Math.min(100, t.utilization)}%"></div>
+                        </div>
+                    </td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
         // Blender functions
         async function launchBlender() {
             const status = document.getElementById('blender-status');
             try {
                 const res = await fetch(`${API_BASE}/api/blender/launch`, { method: 'POST' });
                 const data = await res.json();
-
                 status.className = 'status ' + (data.status === 'ok' ? 'success' : 'info');
                 status.textContent = data.message;
             } catch (e) {
@@ -663,7 +866,6 @@
             try {
                 const res = await fetch(`${API_BASE}/api/blender/export`, { method: 'POST' });
                 const data = await res.json();
-
                 status.className = 'status ' + (data.status === 'ok' ? 'success' : 'error');
                 status.textContent = data.message;
             } catch (e) {
@@ -677,7 +879,6 @@
             try {
                 const res = await fetch(`${API_BASE}/api/blender/sync`, { method: 'POST' });
                 const data = await res.json();
-
                 if (data.status === 'ok') {
                     status.className = 'status success';
                     status.textContent = 'Synced from Blender!';
@@ -691,7 +892,6 @@
             }
         }
 
-        // Resize handler
         window.addEventListener('resize', renderNetwork);
     </script>
 </body>

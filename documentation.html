@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydrogen Simulation - Technical Documentation</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --accent-purple: #a371f7;
+            --accent-red: #f85149;
+            --accent-orange: #db6d28;
+            --border: #30363d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 3rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        h2 {
+            color: var(--accent-blue);
+            font-size: 1.8rem;
+            margin: 2.5rem 0 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h3 {
+            color: var(--accent-green);
+            font-size: 1.3rem;
+            margin: 1.5rem 0 1rem;
+        }
+
+        h4 {
+            color: var(--accent-yellow);
+            font-size: 1.1rem;
+            margin: 1rem 0 0.5rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .section {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .library-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .library-card {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .library-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .library-card h4 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .library-card .version {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: normal;
+        }
+
+        .library-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .library-card code {
+            background: var(--bg-primary);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: var(--accent-purple);
+        }
+
+        .code-block {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+
+        .code-block pre {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .code-block .comment {
+            color: var(--text-secondary);
+        }
+
+        .code-block .keyword {
+            color: var(--accent-purple);
+        }
+
+        .code-block .string {
+            color: var(--accent-green);
+        }
+
+        .code-block .number {
+            color: var(--accent-orange);
+        }
+
+        .code-block .function {
+            color: var(--accent-blue);
+        }
+
+        .diagram {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .diagram pre {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            display: inline-block;
+            text-align: left;
+        }
+
+        .flow-diagram {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 2rem;
+        }
+
+        .flow-box {
+            background: var(--bg-primary);
+            border: 2px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 1rem 2rem;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .flow-box.producer {
+            border-color: var(--accent-yellow);
+        }
+
+        .flow-box.converter {
+            border-color: var(--accent-purple);
+        }
+
+        .flow-box.consumer {
+            border-color: var(--accent-green);
+        }
+
+        .flow-arrow {
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+        }
+
+        .equation {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            text-align: center;
+            font-family: 'Times New Roman', serif;
+            font-size: 1.2rem;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .equation .label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-blue {
+            background: rgba(88, 166, 255, 0.2);
+            color: var(--accent-blue);
+        }
+
+        .badge-green {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--accent-green);
+        }
+
+        .badge-yellow {
+            background: rgba(210, 153, 34, 0.2);
+            color: var(--accent-yellow);
+        }
+
+        .badge-purple {
+            background: rgba(163, 113, 247, 0.2);
+            color: var(--accent-purple);
+        }
+
+        ul, ol {
+            margin: 1rem 0;
+            padding-left: 2rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid var(--accent-blue);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning {
+            background: rgba(210, 153, 34, 0.1);
+            border-left: 3px solid var(--accent-yellow);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .toc {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .toc h3 {
+            margin-top: 0;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin-bottom: 0.3rem;
+        }
+
+        .toc a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .toc a:hover {
+            color: var(--accent-blue);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+            .library-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Hydrogen Simulation System</h1>
+            <p class="subtitle">Technical Documentation - Under the Hood</p>
+        </header>
+
+        <nav class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#architecture">1. System Architecture</a></li>
+                <li><a href="#libraries">2. Libraries & Technologies</a></li>
+                <li><a href="#economic-model">3. Economic Model</a></li>
+                <li><a href="#optimization">4. Optimization Process</a></li>
+                <li><a href="#data-flow">5. Data Flow</a></li>
+                <li><a href="#api">6. API Reference</a></li>
+                <li><a href="#blender">7. Blender Visualization</a></li>
+            </ul>
+        </nav>
+
+        <!-- Section 1: Architecture -->
+        <section id="architecture" class="section">
+            <h2>1. System Architecture</h2>
+            <p>The hydrogen simulation system consists of three main components that work together to model, optimize, and visualize a hydrogen/electricity network.</p>
+
+            <div class="diagram">
+                <pre>
+    +------------------+     +------------------+     +------------------+
+    |   Web Browser    |     |  Flask Server    |     |    Blender       |
+    |  (controller.html|<--->|  (controller.py) |<--->| (visualization)  |
+    +------------------+     +------------------+     +------------------+
+            |                        |                        |
+            |    HTTP/JSON API       |     JSON Files         |
+            |                        |                        |
+            v                        v                        v
+    +------------------+     +------------------+     +------------------+
+    |   User Input     |     |  oemof.solph     |     |  3D Scene        |
+    | - Costs          |     |  (optimization)  |     | - Nodes          |
+    | - Capacities     |     |  + HiGHS solver  |     | - Pipes          |
+    | - Tranches       |     +------------------+     | - Flow Animation |
+    +------------------+              |               +------------------+
+                                      |
+                                      v
+                              +------------------+
+                              |   NetworkX       |
+                              |  (topology)      |
+                              +------------------+
+                </pre>
+            </div>
+
+            <h3>Component Overview</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>File</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-blue">Controller</span></td>
+                    <td><code>controller.py</code></td>
+                    <td>Flask web server providing REST API</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-green">Simulation</span></td>
+                    <td><code>simulation.py</code></td>
+                    <td>Energy system optimization with oemof</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-yellow">Network</span></td>
+                    <td><code>network.py</code></td>
+                    <td>Graph topology with NetworkX</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">Visualization</span></td>
+                    <td><code>blender_visualize.py</code></td>
+                    <td>3D rendering in Blender</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Section 2: Libraries -->
+        <section id="libraries" class="section">
+            <h2>2. Libraries & Technologies</h2>
+            <p>The simulation uses a carefully selected stack of Python libraries, each serving a specific purpose in the energy system modeling pipeline.</p>
+
+            <div class="library-grid">
+                <div class="library-card">
+                    <h4>oemof.solph <span class="version">v0.5+</span></h4>
+                    <p><strong>Role:</strong> Energy System Optimization</p>
+                    <p>Open Energy Modelling Framework - creates mathematical models of energy systems. Builds a linear/mixed-integer program from components (sources, sinks, transformers, buses).</p>
+                    <p><strong>Key classes used:</strong></p>
+                    <ul>
+                        <li><code>EnergySystem</code> - Container for all components</li>
+                        <li><code>Bus</code> - Energy carriers (electricity, hydrogen)</li>
+                        <li><code>Source</code> - Producers (Alpha, Grid)</li>
+                        <li><code>Sink</code> - Consumers (Charlie, Delta)</li>
+                        <li><code>Converter</code> - Transformers (Bravo electrolyzer)</li>
+                        <li><code>Flow</code> - Connections with costs/capacities</li>
+                    </ul>
+                </div>
+
+                <div class="library-card">
+                    <h4>Pyomo <span class="version">v6.0+</span></h4>
+                    <p><strong>Role:</strong> Algebraic Modeling Language</p>
+                    <p>oemof uses Pyomo internally to formulate the optimization problem. Pyomo translates the energy system into mathematical constraints and objectives.</p>
+                    <p><strong>What it does:</strong></p>
+                    <ul>
+                        <li>Creates decision variables (flow quantities)</li>
+                        <li>Defines constraints (capacity limits, efficiency)</li>
+                        <li>Formulates objective function (minimize cost)</li>
+                        <li>Interfaces with solvers (HiGHS, CBC, GLPK)</li>
+                    </ul>
+                </div>
+
+                <div class="library-card">
+                    <h4>HiGHS Solver <span class="version">v1.5+</span></h4>
+                    <p><strong>Role:</strong> Linear Programming Solver</p>
+                    <p>High-performance open-source solver for linear programming (LP) and mixed-integer programming (MIP). Finds optimal flow values.</p>
+                    <p><strong>Algorithm:</strong> Simplex method with presolve</p>
+                    <p><strong>Installation:</strong> <code>pip install highspy</code></p>
+                    <p><strong>Fallback:</strong> CBC solver via <code>conda install coincbc</code></p>
+                </div>
+
+                <div class="library-card">
+                    <h4>NetworkX <span class="version">v3.0+</span></h4>
+                    <p><strong>Role:</strong> Graph/Network Topology</p>
+                    <p>Creates and manages the directed graph representing the physical network structure (nodes and edges/pipes).</p>
+                    <p><strong>Graph type:</strong> <code>DiGraph</code> (directed)</p>
+                    <p><strong>Node attributes:</strong> position, type, carrier</p>
+                    <p><strong>Edge attributes:</strong> carrier (electricity/hydrogen)</p>
+                </div>
+
+                <div class="library-card">
+                    <h4>Flask <span class="version">v3.0+</span></h4>
+                    <p><strong>Role:</strong> Web Framework</p>
+                    <p>Lightweight WSGI web application framework providing the REST API for the controller interface.</p>
+                    <p><strong>Endpoints:</strong></p>
+                    <ul>
+                        <li><code>GET /api/config</code> - Get configuration</li>
+                        <li><code>POST /api/simulate</code> - Run simulation</li>
+                        <li><code>POST /api/blender/launch</code> - Launch Blender</li>
+                    </ul>
+                </div>
+
+                <div class="library-card">
+                    <h4>Pandas <span class="version">v2.0+</span></h4>
+                    <p><strong>Role:</strong> Data Manipulation</p>
+                    <p>Handles time series data for the simulation periods and processes optimization results into DataFrames.</p>
+                    <p><strong>Used for:</strong></p>
+                    <ul>
+                        <li>Creating time index for simulation</li>
+                        <li>Storing flow results per timestep</li>
+                        <li>Aggregating statistics (totals, averages)</li>
+                    </ul>
+                </div>
+
+                <div class="library-card">
+                    <h4>bpy (Blender Python) <span class="version">v4.0+</span></h4>
+                    <p><strong>Role:</strong> 3D Visualization</p>
+                    <p>Blender's Python API for creating 3D scenes programmatically. Built into Blender, not installed via pip.</p>
+                    <p><strong>Creates:</strong></p>
+                    <ul>
+                        <li>Node meshes (spheres, cones, cubes)</li>
+                        <li>Pipe geometry (cylinders)</li>
+                        <li>Animated particle flows</li>
+                        <li>Materials with emission</li>
+                    </ul>
+                </div>
+
+                <div class="library-card">
+                    <h4>Flask-CORS <span class="version">v4.0+</span></h4>
+                    <p><strong>Role:</strong> Cross-Origin Requests</p>
+                    <p>Enables the web interface to make API calls to the Flask server from a browser (handles CORS headers).</p>
+                    <p><strong>Configuration:</strong> All origins allowed for development</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Economic Model -->
+        <section id="economic-model" class="section">
+            <h2>3. Economic Model</h2>
+            <p>The simulation uses a <strong>welfare-maximizing</strong> economic model where the objective is to maximize total surplus (consumer utility minus production costs).</p>
+
+            <h3>3.1 The Network Structure</h3>
+            <div class="diagram">
+                <div class="flow-diagram">
+                    <div class="flow-box producer">
+                        <strong>Alpha</strong><br>
+                        Electricity Producer<br>
+                        <small>Cost: 8 ct/kWh</small>
+                    </div>
+                    <div class="flow-arrow">electricity</div>
+                    <div style="display: flex; gap: 3rem;">
+                        <div>
+                            <div class="flow-box converter">
+                                <strong>Bravo</strong><br>
+                                Electrolyzer<br>
+                                <small>Cost: 1.5 ct/kWh, Eff: 70%</small>
+                            </div>
+                            <div class="flow-arrow">hydrogen</div>
+                            <div class="flow-box consumer">
+                                <strong>Charlie</strong><br>
+                                H2 Consumer<br>
+                                <small>WTP: 25/18/12/6 ct/kg</small>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flow-box consumer">
+                                <strong>Delta</strong><br>
+                                Electricity Consumer<br>
+                                <small>WTP: 20/14/10/5 ct/kWh</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>3.2 Objective Function</h3>
+            <p>The optimization minimizes total "cost" which includes negative utility (willingness to pay):</p>
+
+            <div class="equation">
+                minimize: &Sigma; (Production Costs) - &Sigma; (Consumer Utility)
+                <div class="label">Equivalent to: maximize Net Welfare</div>
+            </div>
+
+            <div class="code-block">
+<pre><span class="comment"># How costs are modeled in oemof:</span>
+
+<span class="comment"># Producer (Alpha) - positive cost</span>
+Flow(nominal_value=<span class="number">100</span>, variable_costs=<span class="number">8.0</span>)  <span class="comment"># 8 ct/kWh to produce</span>
+
+<span class="comment"># Consumer (Charlie) - NEGATIVE cost = utility/benefit</span>
+Flow(nominal_value=<span class="number">5</span>, variable_costs=<span class="number">-25.0</span>)  <span class="comment"># -25 ct = 25 ct utility</span>
+
+<span class="comment"># Total Cost = 8*production - 25*consumption</span>
+<span class="comment"># Minimizing this = Maximizing (utility - cost) = Welfare</span></pre>
+            </div>
+
+            <h3>3.3 Diminishing Marginal Utility</h3>
+            <p>Consumers have <strong>demand tranches</strong> with decreasing willingness to pay, modeling diminishing marginal utility:</p>
+
+            <table>
+                <tr>
+                    <th>Tranche</th>
+                    <th>Charlie (H2)</th>
+                    <th>Delta (Electricity)</th>
+                </tr>
+                <tr>
+                    <td>1st tier</td>
+                    <td>5 kg @ 25 ct/kg</td>
+                    <td>10 kWh @ 20 ct/kWh</td>
+                </tr>
+                <tr>
+                    <td>2nd tier</td>
+                    <td>5 kg @ 18 ct/kg</td>
+                    <td>10 kWh @ 14 ct/kWh</td>
+                </tr>
+                <tr>
+                    <td>3rd tier</td>
+                    <td>5 kg @ 12 ct/kg</td>
+                    <td>15 kWh @ 10 ct/kWh</td>
+                </tr>
+                <tr>
+                    <td>4th tier</td>
+                    <td>10 kg @ 6 ct/kg</td>
+                    <td>20 kWh @ 5 ct/kWh</td>
+                </tr>
+            </table>
+
+            <div class="highlight">
+                <strong>Key Insight:</strong> A tranche is only consumed if the consumer's willingness to pay exceeds the marginal cost of production. For hydrogen, marginal cost = (electricity_cost + transform_cost) / efficiency = (8 + 1.5) / 0.7 = <strong>13.57 ct/kg</strong>. So tranches 3 (12 ct) and 4 (6 ct) won't be consumed!
+            </div>
+
+            <h3>3.4 Mathematical Formulation</h3>
+            <div class="code-block">
+<pre><span class="comment"># Decision Variables (per timestep t):</span>
+x_alpha[t]      <span class="comment"># Electricity produced by Alpha</span>
+x_grid[t]       <span class="comment"># Electricity from grid backup</span>
+x_bravo_in[t]   <span class="comment"># Electricity input to Bravo</span>
+x_bravo_out[t]  <span class="comment"># Hydrogen output from Bravo</span>
+x_charlie_i[t]  <span class="comment"># Hydrogen to Charlie tranche i</span>
+x_delta_i[t]    <span class="comment"># Electricity to Delta tranche i</span>
+
+<span class="comment"># Objective:</span>
+minimize: <span class="number">8</span>*x_alpha + <span class="number">15</span>*x_grid + <span class="number">1.5</span>*x_bravo_in
+        - <span class="number">25</span>*x_charlie_1 - <span class="number">18</span>*x_charlie_2 - ...
+        - <span class="number">20</span>*x_delta_1 - <span class="number">14</span>*x_delta_2 - ...
+
+<span class="comment"># Constraints:</span>
+x_bravo_out = <span class="number">0.7</span> * x_bravo_in     <span class="comment"># Efficiency</span>
+x_alpha <= <span class="number">100</span>                      <span class="comment"># Capacity limit</span>
+x_bravo_out <= <span class="number">50</span>                   <span class="comment"># Capacity limit</span>
+x_charlie_i <= qty_i                <span class="comment"># Tranche limits</span>
+
+<span class="comment"># Bus balance (Kirchhoff's law):</span>
+x_alpha + x_grid = x_bravo_in + &Sigma;x_delta_i</pre>
+            </div>
+        </section>
+
+        <!-- Section 4: Optimization Process -->
+        <section id="optimization" class="section">
+            <h2>4. Optimization Process</h2>
+            <p>Here's the step-by-step process when you click "Run Simulation":</p>
+
+            <h3>Step 1: Build Energy System</h3>
+            <div class="code-block">
+<pre><span class="comment"># Create time index for 24 periods</span>
+date_range = pd.date_range(<span class="string">'2024-01-01'</span>, periods=<span class="number">24</span>, freq=<span class="string">'h'</span>)
+es = solph.EnergySystem(timeindex=date_range)
+
+<span class="comment"># Create buses (energy carriers)</span>
+bus_electricity = solph.Bus(label=<span class="string">'electricity'</span>)
+bus_hydrogen = solph.Bus(label=<span class="string">'hydrogen'</span>)
+
+<span class="comment"># Create components and add to system</span>
+es.add(bus_electricity, bus_hydrogen, alpha, bravo, charlie, delta, grid)</pre>
+            </div>
+
+            <h3>Step 2: Create Pyomo Model</h3>
+            <div class="code-block">
+<pre><span class="comment"># oemof converts to Pyomo optimization model</span>
+model = solph.Model(es)
+
+<span class="comment"># This creates:</span>
+<span class="comment"># - ConcreteModel with variables, constraints, objective</span>
+<span class="comment"># - Flow variables for each connection</span>
+<span class="comment"># - Balance constraints for each bus</span>
+<span class="comment"># - Capacity constraints from nominal_value</span></pre>
+            </div>
+
+            <h3>Step 3: Solve with HiGHS</h3>
+            <div class="code-block">
+<pre><span class="comment"># Attempt solvers in order of preference</span>
+solvers = [<span class="string">'appsi_highs'</span>, <span class="string">'highs'</span>, <span class="string">'cbc'</span>, <span class="string">'glpk'</span>]
+
+<span class="keyword">for</span> solver_name <span class="keyword">in</span> solvers:
+    <span class="keyword">try</span>:
+        model.solve(solver=solver_name)
+        <span class="keyword">break</span>
+    <span class="keyword">except</span>:
+        <span class="keyword">continue</span>
+
+<span class="comment"># HiGHS uses Simplex algorithm:</span>
+<span class="comment"># 1. Convert to standard form</span>
+<span class="comment"># 2. Find initial basic feasible solution</span>
+<span class="comment"># 3. Pivot to improve objective</span>
+<span class="comment"># 4. Repeat until optimal</span></pre>
+            </div>
+
+            <h3>Step 4: Extract Results</h3>
+            <div class="code-block">
+<pre><span class="comment"># Get results from solved model</span>
+results = solph.processing.results(model)
+
+<span class="comment"># Extract flow sequences</span>
+alpha_flow = solph.views.node(results, <span class="string">'Alpha'</span>)[<span class="string">'sequences'</span>]
+bravo_flow = solph.views.node(results, <span class="string">'Bravo'</span>)[<span class="string">'sequences'</span>]
+
+<span class="comment"># Calculate totals</span>
+total_electricity = alpha_flow.sum()
+total_hydrogen = bravo_flow[<span class="string">'output'</span>].sum()
+
+<span class="comment"># Calculate welfare</span>
+total_utility = sum(consumed * wtp for each tranche)
+total_cost = sum(produced * cost for each source)
+welfare = total_utility - total_cost</pre>
+            </div>
+
+            <h3>Solver Comparison</h3>
+            <table>
+                <tr>
+                    <th>Solver</th>
+                    <th>Type</th>
+                    <th>Speed</th>
+                    <th>Installation</th>
+                </tr>
+                <tr>
+                    <td>HiGHS (appsi)</td>
+                    <td>LP/MIP</td>
+                    <td>Fast</td>
+                    <td><code>pip install highspy</code></td>
+                </tr>
+                <tr>
+                    <td>CBC</td>
+                    <td>LP/MIP</td>
+                    <td>Medium</td>
+                    <td><code>conda install coincbc</code></td>
+                </tr>
+                <tr>
+                    <td>GLPK</td>
+                    <td>LP/MIP</td>
+                    <td>Slow</td>
+                    <td><code>conda install glpk</code></td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Section 5: Data Flow -->
+        <section id="data-flow" class="section">
+            <h2>5. Data Flow</h2>
+            <p>Data flows between components through JSON files and HTTP API calls.</p>
+
+            <h3>5.1 Configuration Flow</h3>
+            <div class="diagram">
+                <pre>
+User Input (HTML Form)
+        |
+        | JavaScript fetch()
+        v
+POST /api/config  ───────────────>  Flask Controller
+        |                                   |
+        |                           Updates current_config dict
+        |                                   |
+POST /api/simulate  ──────────────>  Creates SimulationConfig
+        |                                   |
+        |                           Builds oemof EnergySystem
+        |                                   |
+        |                           Solves with HiGHS
+        |                                   |
+        v                                   v
+JSON Response  <──────────────────  Results dictionary
+        |
+        | Parse & display
+        v
+UI Update (charts, tables)
+                </pre>
+            </div>
+
+            <h3>5.2 Network Data Flow</h3>
+            <div class="diagram">
+                <pre>
+network.py                    network_data.json                 blender_visualize.py
+    |                               |                                   |
+    | create_hydrogen_network()     |                                   |
+    |------------------------------>|                                   |
+    |                               |     load_network_from_json()      |
+    |                               |<----------------------------------|
+    |                               |                                   |
+    |                               |     build_visualization()         |
+    |                               |---------------------------------->|
+    |                               |                                   |
+    |                               |     sync_from_blender()           |
+    |                               |<----------------------------------|
+    |                               |                                   |
+    | load_network_from_json()      |                                   |
+    |<------------------------------|                                   |
+                </pre>
+            </div>
+
+            <h3>5.3 JSON Schema: network_data.json</h3>
+            <div class="code-block">
+<pre>{
+  <span class="string">"nodes"</span>: [
+    {
+      <span class="string">"name"</span>: <span class="string">"Alpha"</span>,
+      <span class="string">"node_type"</span>: <span class="string">"producer"</span>,
+      <span class="string">"carrier"</span>: <span class="string">"electricity"</span>,
+      <span class="string">"position"</span>: [<span class="number">0.0</span>, <span class="number">5.0</span>, <span class="number">0.0</span>]
+    },
+    {
+      <span class="string">"name"</span>: <span class="string">"Bravo"</span>,
+      <span class="string">"node_type"</span>: <span class="string">"converter"</span>,
+      <span class="string">"carrier"</span>: <span class="string">"both"</span>,
+      <span class="string">"position"</span>: [<span class="number">-3.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>]
+    }
+    <span class="comment">// ... more nodes</span>
+  ],
+  <span class="string">"edges"</span>: [
+    {
+      <span class="string">"source"</span>: <span class="string">"Alpha"</span>,
+      <span class="string">"target"</span>: <span class="string">"Bravo"</span>,
+      <span class="string">"carrier"</span>: <span class="string">"electricity"</span>
+    }
+    <span class="comment">// ... more edges</span>
+  ]
+}</pre>
+            </div>
+        </section>
+
+        <!-- Section 6: API Reference -->
+        <section id="api" class="section">
+            <h2>6. API Reference</h2>
+
+            <h3>GET /api/config</h3>
+            <p>Returns current simulation configuration.</p>
+            <div class="code-block">
+<pre><span class="comment">// Response</span>
+{
+  <span class="string">"periods"</span>: <span class="number">24</span>,
+  <span class="string">"alpha_capacity"</span>: <span class="number">100.0</span>,
+  <span class="string">"alpha_cost"</span>: <span class="number">8.0</span>,
+  <span class="string">"bravo_capacity"</span>: <span class="number">50.0</span>,
+  <span class="string">"bravo_efficiency"</span>: <span class="number">0.7</span>,
+  <span class="string">"bravo_cost"</span>: <span class="number">1.5</span>,
+  <span class="string">"grid_cost"</span>: <span class="number">15.0</span>,
+  <span class="string">"charlie_tranches"</span>: [[<span class="number">5.0</span>, <span class="number">25.0</span>], [<span class="number">5.0</span>, <span class="number">18.0</span>], ...],
+  <span class="string">"delta_tranches"</span>: [[<span class="number">10.0</span>, <span class="number">20.0</span>], [<span class="number">10.0</span>, <span class="number">14.0</span>], ...]
+}</pre>
+            </div>
+
+            <h3>POST /api/simulate</h3>
+            <p>Runs the optimization and returns results.</p>
+            <div class="code-block">
+<pre><span class="comment">// Response</span>
+{
+  <span class="string">"status"</span>: <span class="string">"ok"</span>,
+  <span class="string">"summary"</span>: {
+    <span class="string">"total_alpha_production"</span>: <span class="number">720.0</span>,
+    <span class="string">"total_grid_usage"</span>: <span class="number">0.0</span>,
+    <span class="string">"total_hydrogen_produced"</span>: <span class="number">240.0</span>,
+    <span class="string">"total_welfare"</span>: <span class="number">6184.67</span>
+  },
+  <span class="string">"flows"</span>: {
+    <span class="string">"Alpha"</span>: [[<span class="number">30.0</span>], [<span class="number">30.0</span>], ...],
+    <span class="string">"Bravo"</span>: [[<span class="number">14.29</span>, <span class="number">10.0</span>], ...]
+  },
+  <span class="string">"price_analysis"</span>: {
+    <span class="string">"electricity_marginal_cost"</span>: <span class="number">8.0</span>,
+    <span class="string">"hydrogen_marginal_cost"</span>: <span class="number">13.57</span>,
+    <span class="string">"charlie_tranches_utilized"</span>: [<span class="keyword">true</span>, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>]
+  }
+}</pre>
+            </div>
+
+            <h3>POST /api/blender/launch</h3>
+            <p>Launches Blender with the visualization script.</p>
+            <div class="code-block">
+<pre><span class="comment">// Response</span>
+{
+  <span class="string">"status"</span>: <span class="string">"ok"</span>,
+  <span class="string">"message"</span>: <span class="string">"Blender launched"</span>,
+  <span class="string">"script"</span>: <span class="string">"C:\\...\\blender_visualize.py"</span>
+}</pre>
+            </div>
+        </section>
+
+        <!-- Section 7: Blender Visualization -->
+        <section id="blender" class="section">
+            <h2>7. Blender Visualization</h2>
+            <p>The Blender visualization creates a 3D representation of the network with animated flow particles.</p>
+
+            <h3>7.1 Node Representations</h3>
+            <table>
+                <tr>
+                    <th>Node Type</th>
+                    <th>Shape</th>
+                    <th>Color</th>
+                </tr>
+                <tr>
+                    <td>Producer (Alpha)</td>
+                    <td>Sphere</td>
+                    <td>Yellow (#FFD700)</td>
+                </tr>
+                <tr>
+                    <td>Converter (Bravo)</td>
+                    <td>Cylinder</td>
+                    <td>Purple (#9370DB)</td>
+                </tr>
+                <tr>
+                    <td>Consumer (Charlie, Delta)</td>
+                    <td>Cone</td>
+                    <td>Green/Blue</td>
+                </tr>
+            </table>
+
+            <h3>7.2 Pipe Colors by Carrier</h3>
+            <ul>
+                <li><strong>Electricity:</strong> Blue pipes with blue particle flow</li>
+                <li><strong>Hydrogen:</strong> Orange pipes with orange particle flow</li>
+            </ul>
+
+            <h3>7.3 Animation System</h3>
+            <div class="code-block">
+<pre><span class="comment"># Flow particles are animated along pipe paths</span>
+<span class="keyword">def</span> <span class="function">animate_particles</span>(pipe, num_particles=<span class="number">5</span>):
+    <span class="keyword">for</span> i <span class="keyword">in</span> range(num_particles):
+        <span class="comment"># Create small sphere</span>
+        particle = create_sphere(radius=<span class="number">0.1</span>)
+
+        <span class="comment"># Keyframe positions along pipe</span>
+        <span class="keyword">for</span> frame <span class="keyword">in</span> range(<span class="number">120</span>):
+            t = (frame + i * <span class="number">24</span>) / <span class="number">120</span>  <span class="comment"># Offset each particle</span>
+            pos = lerp(pipe.start, pipe.end, t % <span class="number">1.0</span>)
+            particle.location = pos
+            particle.keyframe_insert(data_path=<span class="string">"location"</span>)</pre>
+            </div>
+
+            <h3>7.4 Sync Workflow</h3>
+            <ol>
+                <li>Run simulation from web controller</li>
+                <li>Click "Launch Blender" to open visualization</li>
+                <li>Move nodes in Blender as desired</li>
+                <li>Run <code>sync_from_blender()</code> in Blender console</li>
+                <li>New positions saved to <code>network_data.json</code></li>
+                <li>Click "Sync from Blender" in web controller</li>
+            </ol>
+        </section>
+
+        <footer>
+            <p>Hydrogen Simulation System - Technical Documentation</p>
+            <p>Built with oemof.solph, NetworkX, Flask, and Blender</p>
+        </footer>
+    </div>
+</body>
+</html>

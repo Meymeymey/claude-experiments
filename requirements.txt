@@ -11,9 +11,11 @@ pandas>=2.0
 flask>=3.0
 flask-cors>=4.0
 
-# Solver for oemof (choose one):
-# Option 1: Install via conda: conda install -c conda-forge coincbc
-# Option 2: Install via pip (if available): pip install cylp
+# Solver (HiGHS works on Linux VPS)
+highspy>=1.5
+
+# Production server
+gunicorn>=21.0
 
 # Note: bpy (Blender Python API) is built into Blender
 # and does not need to be installed separately.
