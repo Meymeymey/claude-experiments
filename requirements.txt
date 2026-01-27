@@ -7,6 +7,10 @@ networkx>=3.0
 oemof.solph>=0.5
 pandas>=2.0
 
+# Web controller
+flask>=3.0
+flask-cors>=4.0
+
 # Solver for oemof (choose one):
 # Option 1: Install via conda: conda install -c conda-forge coincbc
 # Option 2: Install via pip (if available): pip install cylp
