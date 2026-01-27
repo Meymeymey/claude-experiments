@@ -5,11 +5,13 @@ Models the hydrogen/electricity flows between nodes with price-based economics.
 Economics:
 - Producers have production costs (ct/kWh)
 - Transformers have conversion costs (ct/kWh)
-- Consumers have utility functions with diminishing marginal utility
-  (modeled as demand tranches with decreasing willingness to pay)
+- Consumers have utility functions with diminishing marginal utility:
+  - Charlie & Delta: Logarithmic utility U(x) = a * ln(1 + x/b)
+  - Echo: Cobb-Douglas utility U(h,e) = A * h^α * e^β
 """
 
 import pandas as pd
+import math
 from oemof import solph
 from oemof.solph import views
 from dataclasses import dataclass, field
@@ -22,6 +24,103 @@ class DemandTranche:
     """A demand tranche with quantity and willingness to pay."""
     quantity: float  # kWh or kg per period
     price: float     # ct/unit (willingness to pay)
+
+
+@dataclass
+class LogarithmicUtility:
+    """
+    Logarithmic utility function: U(x) = scale * ln(1 + x/shape)
+
+    Properties:
+    - Marginal utility: MU(x) = scale / (shape + x)
+    - Diminishing marginal utility as x increases
+    - scale controls overall willingness to pay
+    - shape controls how fast marginal utility decreases
+    """
+    scale: float = 30.0    # 'a' parameter - controls max willingness to pay
+    shape: float = 5.0     # 'b' parameter - controls diminishing rate
+    max_quantity: float = 25.0  # Maximum consumption per period
+    num_tranches: int = 5  # Number of tranches for LP approximation
+
+    def utility(self, x: float) -> float:
+        """Calculate utility at consumption level x."""
+        return self.scale * math.log(1 + x / self.shape)
+
+    def marginal_utility(self, x: float) -> float:
+        """Calculate marginal utility (willingness to pay) at consumption level x."""
+        return self.scale / (self.shape + x)
+
+    def generate_tranches(self) -> List[Tuple[float, float]]:
+        """Generate piecewise linear tranches to approximate the utility function."""
+        tranches = []
+        tranche_size = self.max_quantity / self.num_tranches
+
+        for i in range(self.num_tranches):
+            # Use midpoint of tranche for marginal utility calculation
+            midpoint = (i + 0.5) * tranche_size
+            wtp = self.marginal_utility(midpoint)
+            tranches.append((tranche_size, wtp))
+
+        return tranches
+
+
+@dataclass
+class CobbDouglasUtility:
+    """
+    Cobb-Douglas utility function: U(h, e) = A * h^α * e^β
+
+    For LP approximation, we assume Echo consumes hydrogen and electricity
+    in a fixed ratio determined by α and β, then optimize over "bundles".
+
+    Properties:
+    - A: scale parameter (overall utility multiplier)
+    - alpha: exponent for hydrogen (h)
+    - beta: exponent for electricity (e)
+    - The optimal ratio h:e = α:β at any price ratio
+    """
+    A: float = 10.0        # Scale parameter
+    alpha: float = 0.4     # Hydrogen exponent (share of budget)
+    beta: float = 0.6      # Electricity exponent (share of budget)
+    max_bundles: float = 20.0  # Max number of "bundles" per period
+    h_per_bundle: float = 1.0  # kg hydrogen per bundle
+    e_per_bundle: float = 3.0  # kWh electricity per bundle
+    num_tranches: int = 5  # Number of tranches for LP approximation
+
+    def utility(self, h: float, e: float) -> float:
+        """Calculate utility at consumption levels (h, e)."""
+        if h <= 0 or e <= 0:
+            return 0
+        return self.A * (h ** self.alpha) * (e ** self.beta)
+
+    def bundle_utility(self, n_bundles: float) -> float:
+        """Calculate utility from n bundles of (h_per_bundle, e_per_bundle)."""
+        h = n_bundles * self.h_per_bundle
+        e = n_bundles * self.e_per_bundle
+        return self.utility(h, e)
+
+    def marginal_bundle_utility(self, n_bundles: float) -> float:
+        """Calculate marginal utility of an additional bundle."""
+        if n_bundles <= 0:
+            n_bundles = 0.1  # Small value to avoid division issues
+        # Derivative of U with respect to n_bundles
+        h = n_bundles * self.h_per_bundle
+        e = n_bundles * self.e_per_bundle
+        # dU/dn = dU/dh * dh/dn + dU/de * de/dn
+        dU_dh = self.A * self.alpha * (h ** (self.alpha - 1)) * (e ** self.beta)
+        dU_de = self.A * self.beta * (h ** self.alpha) * (e ** (self.beta - 1))
+        return dU_dh * self.h_per_bundle + dU_de * self.e_per_bundle
+
+    def generate_tranches(self) -> List[Tuple[float, float]]:
+        """Generate tranches for bundle consumption (each bundle uses h and e)."""
+        tranches = []
+        tranche_size = self.max_bundles / self.num_tranches
+
+        for i in range(self.num_tranches):
+            midpoint = (i + 0.5) * tranche_size
+            wtp = self.marginal_bundle_utility(midpoint)
+            tranches.append((tranche_size, wtp))
+
+        return tranches
 
 
 @dataclass
@@ -43,23 +142,35 @@ class SimulationConfig:
     # Grid backup (expensive fallback)
     grid_cost: float = 15.0            # Grid electricity cost (ct/kWh)
 
-    # Charlie: Hydrogen consumer - demand tranches (diminishing marginal utility)
-    # Each tuple: (quantity per period, willingness to pay in ct/kg)
-    charlie_tranches: List[Tuple[float, float]] = field(default_factory=lambda: [
-        (5.0, 25.0),   # First 5 kg/period: high value, willing to pay 25 ct/kg
-        (5.0, 18.0),   # Next 5 kg/period: medium value, 18 ct/kg
-        (5.0, 12.0),   # Next 5 kg/period: lower value, 12 ct/kg
-        (10.0, 6.0),   # Beyond that: low priority, 6 ct/kg
-    ])
+    # Charlie: Hydrogen consumer with logarithmic utility
+    charlie_utility: LogarithmicUtility = field(default_factory=lambda: LogarithmicUtility(
+        scale=30.0,       # High willingness to pay for first units
+        shape=5.0,        # Moderate diminishing rate
+        max_quantity=25.0,
+        num_tranches=5
+    ))
 
-    # Delta: Electricity consumer - demand tranches (diminishing marginal utility)
-    # Each tuple: (quantity per period, willingness to pay in ct/kWh)
-    delta_tranches: List[Tuple[float, float]] = field(default_factory=lambda: [
-        (10.0, 20.0),  # First 10 kWh/period: essential use, 20 ct/kWh
-        (10.0, 14.0),  # Next 10 kWh/period: important use, 14 ct/kWh
-        (15.0, 10.0),  # Next 15 kWh/period: comfort use, 10 ct/kWh
-        (20.0, 5.0),   # Beyond that: discretionary, 5 ct/kWh
-    ])
+    # Delta: Electricity consumer with logarithmic utility
+    delta_utility: LogarithmicUtility = field(default_factory=lambda: LogarithmicUtility(
+        scale=25.0,       # Slightly lower max WTP than Charlie
+        shape=10.0,       # Slower diminishing rate (electricity more essential)
+        max_quantity=50.0,
+        num_tranches=5
+    ))
+
+    # Echo: Combined consumer with Cobb-Douglas utility (uses both H2 and electricity)
+    echo_utility: CobbDouglasUtility = field(default_factory=lambda: CobbDouglasUtility(
+        A=15.0,           # Scale parameter
+        alpha=0.4,        # Hydrogen share
+        beta=0.6,         # Electricity share
+        max_bundles=15.0,
+        h_per_bundle=1.0, # 1 kg H2 per bundle
+        e_per_bundle=3.0, # 3 kWh electricity per bundle
+        num_tranches=5
+    ))
+
+    # Whether to include Echo in the simulation
+    include_echo: bool = True
 
 
 class HydrogenSystemSimulation:
@@ -84,6 +195,10 @@ class HydrogenSystemSimulation:
         self.model = None
         self.results = None
         self._components = {}
+        # Generated tranches (populated by build_system)
+        self._charlie_tranches = []
+        self._delta_tranches = []
+        self._echo_tranches = []
 
     def build_system(self) -> None:
         """Build the oemof energy system model with price-based economics."""
@@ -148,11 +263,11 @@ class HydrogenSystemSimulation:
             }
         )
 
-        # Charlie: Hydrogen consumer with diminishing marginal utility
-        # Model as multiple sinks (tranches) with different utility values
-        # Negative cost = positive utility (benefit from consumption)
+        # Charlie: Hydrogen consumer with logarithmic utility
+        # Generate tranches from utility function
+        charlie_tranches = self.config.charlie_utility.generate_tranches()
         charlie_sinks = []
-        for i, (qty, wtp) in enumerate(self.config.charlie_tranches):
+        for i, (qty, wtp) in enumerate(charlie_tranches):
             sink = solph.components.Sink(
                 label=f'Charlie_T{i+1}',
                 inputs={
@@ -164,9 +279,10 @@ class HydrogenSystemSimulation:
             )
             charlie_sinks.append(sink)
 
-        # Delta: Electricity consumer with diminishing marginal utility
+        # Delta: Electricity consumer with logarithmic utility
+        delta_tranches = self.config.delta_utility.generate_tranches()
         delta_sinks = []
-        for i, (qty, wtp) in enumerate(self.config.delta_tranches):
+        for i, (qty, wtp) in enumerate(delta_tranches):
             sink = solph.components.Sink(
                 label=f'Delta_T{i+1}',
                 inputs={
@@ -177,6 +293,44 @@ class HydrogenSystemSimulation:
                 }
             )
             delta_sinks.append(sink)
+
+        # Echo: Combined consumer with Cobb-Douglas utility
+        # Consumes fixed-ratio bundles of hydrogen + electricity
+        echo_sinks = []
+        echo_tranches = []
+        if self.config.include_echo:
+            echo_tranches = self.config.echo_utility.generate_tranches()
+            for i, (qty, wtp) in enumerate(echo_tranches):
+                # Each Echo tranche is a "bundle sink" that needs both H2 and electricity
+                # We model this as a Converter that consumes both inputs
+                # The "product" is abstract utility (no physical output needed)
+                h_per_bundle = self.config.echo_utility.h_per_bundle
+                e_per_bundle = self.config.echo_utility.e_per_bundle
+
+                # Use a dummy bus for Echo's "satisfaction" output
+                if i == 0:
+                    bus_echo_satisfaction = solph.Bus(label='echo_satisfaction_bus')
+
+                # Echo bundle converter: takes H2 and electricity, outputs "satisfaction"
+                echo_converter = solph.components.Converter(
+                    label=f'Echo_T{i+1}',
+                    inputs={
+                        bus_hydrogen: solph.Flow(),
+                        bus_electricity: solph.Flow(),
+                    },
+                    outputs={
+                        bus_echo_satisfaction: solph.Flow(
+                            nominal_value=qty,
+                            variable_costs=-wtp,  # Negative = utility/benefit
+                        )
+                    },
+                    conversion_factors={
+                        bus_hydrogen: 1 / h_per_bundle,      # H2 needed per bundle
+                        bus_electricity: 1 / e_per_bundle,   # Electricity needed per bundle
+                        bus_echo_satisfaction: 1.0,          # Output: 1 satisfaction unit per bundle
+                    }
+                )
+                echo_sinks.append(echo_converter)
 
         # Excess sinks (curtailment) - no cost, just allows excess
         excess_electricity = solph.components.Sink(
@@ -189,7 +343,15 @@ class HydrogenSystemSimulation:
             inputs={bus_hydrogen: solph.Flow()}
         )
 
-        # Store components for reference
+        # Echo satisfaction sink (needed to complete the bus)
+        echo_satisfaction_sink = None
+        if self.config.include_echo:
+            echo_satisfaction_sink = solph.components.Sink(
+                label='Echo_Satisfaction',
+                inputs={bus_echo_satisfaction: solph.Flow()}
+            )
+
+        # Store components and tranches for reference
         self._components = {
             'bus_electricity': bus_electricity,
             'bus_hydrogen': bus_hydrogen,
@@ -198,9 +360,13 @@ class HydrogenSystemSimulation:
             'Bravo': bravo,
             'Charlie_sinks': charlie_sinks,
             'Delta_sinks': delta_sinks,
+            'Echo_sinks': echo_sinks,
             'Excess_Electricity': excess_electricity,
             'Excess_Hydrogen': excess_hydrogen,
         }
+        self._charlie_tranches = charlie_tranches
+        self._delta_tranches = delta_tranches
+        self._echo_tranches = echo_tranches
 
         # Add all components to energy system
         components_to_add = [
@@ -211,9 +377,14 @@ class HydrogenSystemSimulation:
         components_to_add.extend(charlie_sinks)
         components_to_add.extend(delta_sinks)
 
+        if self.config.include_echo:
+            components_to_add.append(bus_echo_satisfaction)
+            components_to_add.extend(echo_sinks)
+            components_to_add.append(echo_satisfaction_sink)
+
         self.energy_system.add(*components_to_add)
 
-        print("Energy system built successfully (price-based model).")
+        print("Energy system built successfully (logarithmic + Cobb-Douglas utilities).")
 
     def _generate_production_profile(self) -> list:
         """Generate electricity production availability profile (e.g., solar pattern)."""
@@ -284,7 +455,7 @@ class HydrogenSystemSimulation:
 
         # Charlie consumption (sum all tranches)
         charlie_total = None
-        for i in range(len(self.config.charlie_tranches)):
+        for i in range(len(self._charlie_tranches)):
             sink_flow = views.node(self.results, f'Charlie_T{i+1}')
             if sink_flow is not None and 'sequences' in sink_flow:
                 if charlie_total is None:
@@ -296,7 +467,7 @@ class HydrogenSystemSimulation:
 
         # Delta consumption (sum all tranches)
         delta_total = None
-        for i in range(len(self.config.delta_tranches)):
+        for i in range(len(self._delta_tranches)):
             sink_flow = views.node(self.results, f'Delta_T{i+1}')
             if sink_flow is not None and 'sequences' in sink_flow:
                 if delta_total is None:
@@ -305,6 +476,26 @@ class HydrogenSystemSimulation:
                     delta_total += sink_flow['sequences']
         if delta_total is not None:
             flows['Delta_consumption'] = delta_total
+
+        # Echo consumption (sum all tranches - bundles consumed)
+        if self.config.include_echo and self._echo_tranches:
+            echo_total = None
+            echo_h2_total = None
+            echo_elec_total = None
+            for i in range(len(self._echo_tranches)):
+                echo_flow = views.node(self.results, f'Echo_T{i+1}')
+                if echo_flow is not None and 'sequences' in echo_flow:
+                    if echo_total is None:
+                        echo_total = echo_flow['sequences'].copy()
+                    else:
+                        echo_total += echo_flow['sequences']
+            if echo_total is not None:
+                flows['Echo_consumption'] = echo_total
+                # Also calculate H2 and electricity used by Echo
+                h_per_bundle = self.config.echo_utility.h_per_bundle
+                e_per_bundle = self.config.echo_utility.e_per_bundle
+                flows['Echo_hydrogen'] = echo_total * h_per_bundle
+                flows['Echo_electricity'] = echo_total * e_per_bundle
 
         return flows
 
@@ -336,36 +527,60 @@ class HydrogenSystemSimulation:
                 bravo_input = float(bravo_data['sequences'].sum().sum()) / 2  # Approximate
                 summary['bravo_conversion_cost'] = bravo_input * self.config.bravo_cost
 
-            # Charlie consumption and utility
+            # Charlie consumption and utility (using generated tranches)
             charlie_utility = 0.0
             charlie_total = 0.0
-            for i, (qty, wtp) in enumerate(self.config.charlie_tranches):
+            for i, (qty, wtp) in enumerate(self._charlie_tranches):
                 sink_data = views.node(self.results, f'Charlie_T{i+1}')
                 if sink_data is not None and 'sequences' in sink_data:
                     consumption = float(sink_data['sequences'].sum().sum())
                     charlie_total += consumption
                     charlie_utility += consumption * wtp
-            summary['total_hydrogen_consumed'] = charlie_total
+            summary['charlie_hydrogen_consumed'] = charlie_total
             summary['charlie_utility_total'] = charlie_utility
 
-            # Delta consumption and utility
+            # Delta consumption and utility (using generated tranches)
             delta_utility = 0.0
             delta_total = 0.0
-            for i, (qty, wtp) in enumerate(self.config.delta_tranches):
+            for i, (qty, wtp) in enumerate(self._delta_tranches):
                 sink_data = views.node(self.results, f'Delta_T{i+1}')
                 if sink_data is not None and 'sequences' in sink_data:
                     consumption = float(sink_data['sequences'].sum().sum())
                     delta_total += consumption
                     delta_utility += consumption * wtp
-            summary['total_electricity_consumed'] = delta_total
+            summary['delta_electricity_consumed'] = delta_total
             summary['delta_utility_total'] = delta_utility
+
+            # Echo consumption and utility (Cobb-Douglas)
+            echo_utility = 0.0
+            echo_bundles = 0.0
+            echo_h2 = 0.0
+            echo_elec = 0.0
+            if self.config.include_echo and self._echo_tranches:
+                for i, (qty, wtp) in enumerate(self._echo_tranches):
+                    echo_data = views.node(self.results, f'Echo_T{i+1}')
+                    if echo_data is not None and 'sequences' in echo_data:
+                        bundles = float(echo_data['sequences'].sum().sum())
+                        echo_bundles += bundles
+                        echo_utility += bundles * wtp
+                echo_h2 = echo_bundles * self.config.echo_utility.h_per_bundle
+                echo_elec = echo_bundles * self.config.echo_utility.e_per_bundle
+            summary['echo_bundles_consumed'] = echo_bundles
+            summary['echo_hydrogen_consumed'] = echo_h2
+            summary['echo_electricity_consumed'] = echo_elec
+            summary['echo_utility_total'] = echo_utility
+
+            # Total consumption
+            summary['total_hydrogen_consumed'] = charlie_total + echo_h2
+            summary['total_electricity_consumed'] = delta_total + echo_elec
 
             # Total welfare = utility - costs
             total_costs = summary.get('alpha_cost_total', 0) + \
                          summary.get('grid_cost_total', 0) + \
                          summary.get('bravo_conversion_cost', 0)
             total_utility = summary.get('charlie_utility_total', 0) + \
-                           summary.get('delta_utility_total', 0)
+                           summary.get('delta_utility_total', 0) + \
+                           summary.get('echo_utility_total', 0)
             summary['total_costs'] = total_costs
             summary['total_utility'] = total_utility
             summary['total_welfare'] = total_utility - total_costs
@@ -393,11 +608,16 @@ class HydrogenSystemSimulation:
             'hydrogen': {
                 'marginal_cost': self._calculate_hydrogen_marginal_cost(),
                 'consumer_tranches': []
+            },
+            'echo': {
+                'bundles': [],
+                'h_per_bundle': self.config.echo_utility.h_per_bundle if self.config.include_echo else 0,
+                'e_per_bundle': self.config.echo_utility.e_per_bundle if self.config.include_echo else 0,
             }
         }
 
-        # Analyze which tranches were used
-        for i, (qty, wtp) in enumerate(self.config.delta_tranches):
+        # Delta tranches (electricity - logarithmic utility)
+        for i, (qty, wtp) in enumerate(self._delta_tranches):
             sink_data = views.node(self.results, f'Delta_T{i+1}')
             if sink_data is not None and 'sequences' in sink_data:
                 consumption = float(sink_data['sequences'].sum().sum())
@@ -409,7 +629,8 @@ class HydrogenSystemSimulation:
                     'utilization': consumption / (qty * self.config.periods) * 100
                 })
 
-        for i, (qty, wtp) in enumerate(self.config.charlie_tranches):
+        # Charlie tranches (hydrogen - logarithmic utility)
+        for i, (qty, wtp) in enumerate(self._charlie_tranches):
             sink_data = views.node(self.results, f'Charlie_T{i+1}')
             if sink_data is not None and 'sequences' in sink_data:
                 consumption = float(sink_data['sequences'].sum().sum())
@@ -420,6 +641,20 @@ class HydrogenSystemSimulation:
                     'willingness_to_pay': wtp,
                     'utilization': consumption / (qty * self.config.periods) * 100
                 })
+
+        # Echo tranches (Cobb-Douglas bundles)
+        if self.config.include_echo and self._echo_tranches:
+            for i, (qty, wtp) in enumerate(self._echo_tranches):
+                echo_data = views.node(self.results, f'Echo_T{i+1}')
+                if echo_data is not None and 'sequences' in echo_data:
+                    bundles = float(echo_data['sequences'].sum().sum())
+                    analysis['echo']['bundles'].append({
+                        'tranche': i + 1,
+                        'max_bundles': qty * self.config.periods,
+                        'consumed': bundles,
+                        'willingness_to_pay': wtp,
+                        'utilization': bundles / (qty * self.config.periods) * 100 if qty > 0 else 0
+                    })
 
         return analysis
 
@@ -450,8 +685,27 @@ class HydrogenSystemSimulation:
                 'alpha_cost': self.config.alpha_cost,
                 'bravo_efficiency': self.config.bravo_efficiency,
                 'bravo_cost': self.config.bravo_cost,
-                'charlie_tranches': self.config.charlie_tranches,
-                'delta_tranches': self.config.delta_tranches,
+                'charlie_utility': {
+                    'type': 'logarithmic',
+                    'scale': self.config.charlie_utility.scale,
+                    'shape': self.config.charlie_utility.shape,
+                    'max_quantity': self.config.charlie_utility.max_quantity,
+                },
+                'delta_utility': {
+                    'type': 'logarithmic',
+                    'scale': self.config.delta_utility.scale,
+                    'shape': self.config.delta_utility.shape,
+                    'max_quantity': self.config.delta_utility.max_quantity,
+                },
+                'echo_utility': {
+                    'type': 'cobb_douglas',
+                    'A': self.config.echo_utility.A,
+                    'alpha': self.config.echo_utility.alpha,
+                    'beta': self.config.echo_utility.beta,
+                    'h_per_bundle': self.config.echo_utility.h_per_bundle,
+                    'e_per_bundle': self.config.echo_utility.e_per_bundle,
+                } if self.config.include_echo else None,
+                'include_echo': self.config.include_echo,
             },
             'summary': self.get_summary(),
             'price_analysis': self.get_price_analysis(),
@@ -471,11 +725,21 @@ class HydrogenSystemSimulation:
         summary = self.get_summary()
         analysis = self.get_price_analysis()
 
-        print("\n" + "=" * 60)
-        print("  SIMULATION RESULTS (Price-Based Model)")
-        print("=" * 60)
+        print("\n" + "=" * 70)
+        print("  SIMULATION RESULTS (Logarithmic + Cobb-Douglas Utilities)")
+        print("=" * 70)
 
         print(f"\nSimulation periods: {self.config.periods}")
+
+        print("\n--- UTILITY FUNCTIONS ---")
+        cu = self.config.charlie_utility
+        print(f"  Charlie (H2): U(x) = {cu.scale} * ln(1 + x/{cu.shape})")
+        du = self.config.delta_utility
+        print(f"  Delta (Elec): U(x) = {du.scale} * ln(1 + x/{du.shape})")
+        if self.config.include_echo:
+            eu = self.config.echo_utility
+            print(f"  Echo (Both):  U(h,e) = {eu.A} * h^{eu.alpha} * e^{eu.beta}")
+            print(f"                Bundle: {eu.h_per_bundle} kg H2 + {eu.e_per_bundle} kWh elec")
 
         print("\n--- COSTS ---")
         print(f"  Alpha production cost: {self.config.alpha_cost} ct/kWh")
@@ -488,26 +752,42 @@ class HydrogenSystemSimulation:
         print(f"  Grid electricity used: {summary.get('total_grid_supply', 0):.2f} kWh")
 
         print("\n--- CONSUMPTION ---")
-        print(f"  Delta electricity consumed: {summary.get('total_electricity_consumed', 0):.2f} kWh")
-        print(f"  Charlie hydrogen consumed: {summary.get('total_hydrogen_consumed', 0):.2f} kg")
+        print(f"  Charlie hydrogen: {summary.get('charlie_hydrogen_consumed', 0):.2f} kg")
+        print(f"  Delta electricity: {summary.get('delta_electricity_consumed', 0):.2f} kWh")
+        if self.config.include_echo:
+            print(f"  Echo bundles: {summary.get('echo_bundles_consumed', 0):.2f}")
+            print(f"    -> H2: {summary.get('echo_hydrogen_consumed', 0):.2f} kg")
+            print(f"    -> Elec: {summary.get('echo_electricity_consumed', 0):.2f} kWh")
+        print(f"  TOTAL hydrogen: {summary.get('total_hydrogen_consumed', 0):.2f} kg")
+        print(f"  TOTAL electricity: {summary.get('total_electricity_consumed', 0):.2f} kWh")
 
         print("\n--- ECONOMIC SUMMARY ---")
         print(f"  Total production costs: {summary.get('total_costs', 0):.2f} ct")
+        print(f"  Charlie utility: {summary.get('charlie_utility_total', 0):.2f} ct")
+        print(f"  Delta utility: {summary.get('delta_utility_total', 0):.2f} ct")
+        if self.config.include_echo:
+            print(f"  Echo utility: {summary.get('echo_utility_total', 0):.2f} ct")
         print(f"  Total consumer utility: {summary.get('total_utility', 0):.2f} ct")
         print(f"  Total welfare (utility - costs): {summary.get('total_welfare', 0):.2f} ct")
 
         print("\n--- DEMAND TRANCHE UTILIZATION ---")
-        print("  Electricity (Delta):")
+        print("  Delta (Electricity - Logarithmic):")
         for t in analysis['electricity']['consumer_tranches']:
-            print(f"    Tranche {t['tranche']}: {t['consumed']:.1f}/{t['max_quantity']:.1f} kWh "
-                  f"({t['utilization']:.1f}%) @ {t['willingness_to_pay']} ct/kWh")
+            print(f"    T{t['tranche']}: {t['consumed']:.1f}/{t['max_quantity']:.1f} kWh "
+                  f"({t['utilization']:.1f}%) @ {t['willingness_to_pay']:.2f} ct/kWh")
 
-        print("  Hydrogen (Charlie):")
+        print("  Charlie (Hydrogen - Logarithmic):")
         for t in analysis['hydrogen']['consumer_tranches']:
-            print(f"    Tranche {t['tranche']}: {t['consumed']:.1f}/{t['max_quantity']:.1f} kg "
-                  f"({t['utilization']:.1f}%) @ {t['willingness_to_pay']} ct/kg")
+            print(f"    T{t['tranche']}: {t['consumed']:.1f}/{t['max_quantity']:.1f} kg "
+                  f"({t['utilization']:.1f}%) @ {t['willingness_to_pay']:.2f} ct/kg")
 
-        print("=" * 60)
+        if self.config.include_echo and analysis['echo']['bundles']:
+            print("  Echo (Bundles - Cobb-Douglas):")
+            for t in analysis['echo']['bundles']:
+                print(f"    T{t['tranche']}: {t['consumed']:.1f}/{t['max_bundles']:.1f} bundles "
+                      f"({t['utilization']:.1f}%) @ {t['willingness_to_pay']:.2f} ct/bundle")
+
+        print("=" * 70)
 
 
 def run_simulation(config: Optional[SimulationConfig] = None) -> HydrogenSystemSimulation:

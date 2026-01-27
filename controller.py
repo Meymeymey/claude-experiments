@@ -15,20 +15,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from network import create_hydrogen_network, export_network_to_json, print_network_info
 
-# Optional: simulation requires oemof which needs CBC solver
+# Optional: simulation requires oemof which needs HiGHS solver
 SIMULATION_AVAILABLE = False
 try:
-    from simulation import SimulationConfig, HydrogenSystemSimulation
+    from simulation import (
+        SimulationConfig, HydrogenSystemSimulation,
+        LogarithmicUtility, CobbDouglasUtility
+    )
     SIMULATION_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Simulation not available ({e})")
-    print("Install with: pip install oemof.solph pandas")
-    print("Also install CBC solver: conda install -c conda-forge coincbc")
+    print("Install with: pip install oemof.solph pandas highspy")
 
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app)
 
-# Store current configuration (price-based model)
+# Store current configuration (utility-function-based model)
 current_config = {
     'periods': 24,
     # Alpha: Electricity producer
@@ -40,21 +42,28 @@ current_config = {
     'bravo_cost': 1.5,            # Transformation cost (ct/kWh)
     # Grid backup
     'grid_cost': 15.0,            # Grid electricity cost (ct/kWh)
-    # Consumer demand tranches (stored as JSON-serializable lists)
-    # Charlie (hydrogen): [(quantity, willingness_to_pay), ...]
-    'charlie_tranches': [
-        [5.0, 25.0],   # First 5 kg/period @ 25 ct/kg
-        [5.0, 18.0],   # Next 5 kg/period @ 18 ct/kg
-        [5.0, 12.0],   # Next 5 kg/period @ 12 ct/kg
-        [10.0, 6.0],   # Beyond @ 6 ct/kg
-    ],
-    # Delta (electricity): [(quantity, willingness_to_pay), ...]
-    'delta_tranches': [
-        [10.0, 20.0],  # First 10 kWh/period @ 20 ct/kWh
-        [10.0, 14.0],  # Next 10 kWh @ 14 ct/kWh
-        [15.0, 10.0],  # Next 15 kWh @ 10 ct/kWh
-        [20.0, 5.0],   # Beyond @ 5 ct/kWh
-    ],
+
+    # Charlie: Hydrogen consumer - Logarithmic utility U(x) = scale * ln(1 + x/shape)
+    'charlie_scale': 30.0,        # Scale parameter (max willingness to pay)
+    'charlie_shape': 5.0,         # Shape parameter (diminishing rate)
+    'charlie_max_quantity': 25.0, # Max consumption per period (kg)
+    'charlie_num_tranches': 5,    # Number of LP approximation tranches
+
+    # Delta: Electricity consumer - Logarithmic utility U(x) = scale * ln(1 + x/shape)
+    'delta_scale': 25.0,          # Scale parameter
+    'delta_shape': 10.0,          # Shape parameter (slower diminishing)
+    'delta_max_quantity': 50.0,   # Max consumption per period (kWh)
+    'delta_num_tranches': 5,      # Number of LP approximation tranches
+
+    # Echo: Combined consumer - Cobb-Douglas utility U(h,e) = A * h^alpha * e^beta
+    'include_echo': True,
+    'echo_A': 15.0,               # Scale parameter
+    'echo_alpha': 0.4,            # Hydrogen exponent
+    'echo_beta': 0.6,             # Electricity exponent
+    'echo_max_bundles': 15.0,     # Max bundles per period
+    'echo_h_per_bundle': 1.0,     # kg H2 per bundle
+    'echo_e_per_bundle': 3.0,     # kWh electricity per bundle
+    'echo_num_tranches': 5,       # Number of LP approximation tranches
 }
 
 # Store last simulation results
@@ -86,9 +95,13 @@ def set_config():
     # Update only provided values
     for key in current_config:
         if key in data:
-            # Handle tranches as lists, others as floats
-            if key in ('charlie_tranches', 'delta_tranches'):
-                current_config[key] = data[key]
+            # Handle boolean and numeric types appropriately
+            if key == 'include_echo':
+                current_config[key] = bool(data[key])
+            elif key == 'periods':
+                current_config[key] = int(data[key])
+            elif key.endswith('_num_tranches'):
+                current_config[key] = int(data[key])
             else:
                 current_config[key] = float(data[key])
 
@@ -149,14 +162,34 @@ def run_simulation():
     if not SIMULATION_AVAILABLE:
         return jsonify({
             'status': 'error',
-            'message': 'Simulation not available. Install oemof: pip install oemof.solph pandas',
-            'hint': 'Also install CBC solver: conda install -c conda-forge coincbc'
+            'message': 'Simulation not available. Install oemof: pip install oemof.solph pandas highspy'
         }), 503
 
     try:
-        # Convert tranche lists to tuples for SimulationConfig
-        charlie_tranches = [tuple(t) for t in current_config['charlie_tranches']]
-        delta_tranches = [tuple(t) for t in current_config['delta_tranches']]
+        # Create utility function objects from config
+        charlie_utility = LogarithmicUtility(
+            scale=current_config['charlie_scale'],
+            shape=current_config['charlie_shape'],
+            max_quantity=current_config['charlie_max_quantity'],
+            num_tranches=int(current_config['charlie_num_tranches'])
+        )
+
+        delta_utility = LogarithmicUtility(
+            scale=current_config['delta_scale'],
+            shape=current_config['delta_shape'],
+            max_quantity=current_config['delta_max_quantity'],
+            num_tranches=int(current_config['delta_num_tranches'])
+        )
+
+        echo_utility = CobbDouglasUtility(
+            A=current_config['echo_A'],
+            alpha=current_config['echo_alpha'],
+            beta=current_config['echo_beta'],
+            max_bundles=current_config['echo_max_bundles'],
+            h_per_bundle=current_config['echo_h_per_bundle'],
+            e_per_bundle=current_config['echo_e_per_bundle'],
+            num_tranches=int(current_config['echo_num_tranches'])
+        )
 
         config = SimulationConfig(
             periods=int(current_config['periods']),
@@ -166,8 +199,10 @@ def run_simulation():
             bravo_efficiency=current_config['bravo_efficiency'],
             bravo_cost=current_config['bravo_cost'],
             grid_cost=current_config['grid_cost'],
-            charlie_tranches=charlie_tranches,
-            delta_tranches=delta_tranches,
+            charlie_utility=charlie_utility,
+            delta_utility=delta_utility,
+            echo_utility=echo_utility,
+            include_echo=current_config['include_echo'],
         )
 
         sim = HydrogenSystemSimulation(config)
@@ -207,10 +242,12 @@ def run_simulation():
         return jsonify(last_results)
 
     except Exception as e:
+        import traceback
         return jsonify({
             'status': 'error',
             'message': str(e),
-            'hint': 'Make sure CBC solver is installed: conda install -c conda-forge coincbc'
+            'traceback': traceback.format_exc(),
+            'hint': 'Make sure HiGHS solver is installed: pip install highspy'
         }), 500
 
 

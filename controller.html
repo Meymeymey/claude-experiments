@@ -397,50 +397,75 @@
 
             <!-- Consumer Utility Card -->
             <div class="card">
-                <h2><span class="icon">📈</span> Consumer Utility (Willingness to Pay)</h2>
+                <h2><span class="icon">📈</span> Consumer Utility Functions</h2>
 
-                <h3>Delta - Electricity Consumer</h3>
-                <p style="color:#666;font-size:0.8rem;margin-bottom:8px;">Diminishing marginal utility tranches</p>
-                <div class="param-row">
+                <h3>Charlie - Hydrogen (Logarithmic)</h3>
+                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
+                <div class="param-row-3">
                     <div class="param-group">
-                        <label>T1: Qty (kWh/h) @ Price (ct)</label>
-                        <input type="text" id="delta_t1" value="10, 20" placeholder="qty, price">
+                        <label>Scale (a)</label>
+                        <input type="number" id="charlie_scale" value="30" min="1" step="1">
                     </div>
                     <div class="param-group">
-                        <label>T2: Qty @ Price</label>
-                        <input type="text" id="delta_t2" value="10, 14" placeholder="qty, price">
-                    </div>
-                </div>
-                <div class="param-row">
-                    <div class="param-group">
-                        <label>T3: Qty @ Price</label>
-                        <input type="text" id="delta_t3" value="15, 10" placeholder="qty, price">
+                        <label>Shape (b)</label>
+                        <input type="number" id="charlie_shape" value="5" min="0.1" step="0.5">
                     </div>
                     <div class="param-group">
-                        <label>T4: Qty @ Price</label>
-                        <input type="text" id="delta_t4" value="20, 5" placeholder="qty, price">
+                        <label>Max Qty (kg/h)</label>
+                        <input type="number" id="charlie_max_quantity" value="25" min="1" step="5">
                     </div>
                 </div>
 
-                <h3>Charlie - Hydrogen Consumer</h3>
-                <div class="param-row">
+                <h3>Delta - Electricity (Logarithmic)</h3>
+                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
+                <div class="param-row-3">
                     <div class="param-group">
-                        <label>T1: Qty (kg/h) @ Price (ct)</label>
-                        <input type="text" id="charlie_t1" value="5, 25" placeholder="qty, price">
+                        <label>Scale (a)</label>
+                        <input type="number" id="delta_scale" value="25" min="1" step="1">
                     </div>
                     <div class="param-group">
-                        <label>T2: Qty @ Price</label>
-                        <input type="text" id="charlie_t2" value="5, 18" placeholder="qty, price">
+                        <label>Shape (b)</label>
+                        <input type="number" id="delta_shape" value="10" min="0.1" step="0.5">
+                    </div>
+                    <div class="param-group">
+                        <label>Max Qty (kWh/h)</label>
+                        <input type="number" id="delta_max_quantity" value="50" min="1" step="5">
                     </div>
                 </div>
-                <div class="param-row">
+
+                <h3 style="display:flex;align-items:center;gap:10px;">
+                    Echo - Both (Cobb-Douglas)
+                    <label style="font-size:0.8rem;color:#888;font-weight:normal;">
+                        <input type="checkbox" id="include_echo" checked style="margin-right:4px;">Enable
+                    </label>
+                </h3>
+                <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(h,e) = A × h<sup>α</sup> × e<sup>β</sup></p>
+                <div class="param-row-3">
                     <div class="param-group">
-                        <label>T3: Qty @ Price</label>
-                        <input type="text" id="charlie_t3" value="5, 12" placeholder="qty, price">
+                        <label>Scale (A)</label>
+                        <input type="number" id="echo_A" value="15" min="0.1" step="1">
                     </div>
                     <div class="param-group">
-                        <label>T4: Qty @ Price</label>
-                        <input type="text" id="charlie_t4" value="10, 6" placeholder="qty, price">
+                        <label>H2 exp (α)</label>
+                        <input type="number" id="echo_alpha" value="0.4" min="0.01" max="1" step="0.05">
+                    </div>
+                    <div class="param-group">
+                        <label>Elec exp (β)</label>
+                        <input type="number" id="echo_beta" value="0.6" min="0.01" max="1" step="0.05">
+                    </div>
+                </div>
+                <div class="param-row-3">
+                    <div class="param-group">
+                        <label>H2/bundle (kg)</label>
+                        <input type="number" id="echo_h_per_bundle" value="1" min="0.1" step="0.5">
+                    </div>
+                    <div class="param-group">
+                        <label>Elec/bundle (kWh)</label>
+                        <input type="number" id="echo_e_per_bundle" value="3" min="0.1" step="0.5">
+                    </div>
+                    <div class="param-group">
+                        <label>Max bundles/h</label>
+                        <input type="number" id="echo_max_bundles" value="15" min="1" step="1">
                     </div>
                 </div>
             </div>
@@ -476,15 +501,41 @@
                     </div>
                 </div>
 
-                <h3>Consumption</h3>
-                <div class="results-grid">
+                <h3>Consumption by Consumer</h3>
+                <div class="results-grid-3">
                     <div class="result-item">
-                        <div class="label">Delta Electricity</div>
+                        <div class="label">Charlie (H2)</div>
+                        <div class="value" id="res-charlie">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Delta (Elec)</div>
                         <div class="value" id="res-delta">--</div>
                     </div>
                     <div class="result-item">
-                        <div class="label">Charlie Hydrogen</div>
-                        <div class="value" id="res-charlie">--</div>
+                        <div class="label">Echo (Bundles)</div>
+                        <div class="value" id="res-echo-bundles">--</div>
+                    </div>
+                </div>
+
+                <h3>Totals & Echo Breakdown</h3>
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="label">Total H2 Consumed</div>
+                        <div class="value" id="res-total-h2">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Total Elec Consumed</div>
+                        <div class="value" id="res-total-elec">--</div>
+                    </div>
+                </div>
+                <div class="results-grid" id="echo-breakdown" style="margin-top:8px;">
+                    <div class="result-item">
+                        <div class="label">Echo H2</div>
+                        <div class="value" id="res-echo-h2">--</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Echo Elec</div>
+                        <div class="value" id="res-echo-elec">--</div>
                     </div>
                 </div>
 
@@ -499,17 +550,23 @@
 
             <!-- Tranche Utilization Card -->
             <div class="card">
-                <h2><span class="icon">📊</span> Demand Tranche Utilization</h2>
+                <h2><span class="icon">📊</span> Utility Tranche Utilization</h2>
 
-                <h3>Delta (Electricity)</h3>
-                <table class="tranches-table" id="delta-tranches-table">
-                    <tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>
+                <h3>Charlie (Hydrogen - Logarithmic)</h3>
+                <table class="tranches-table" id="charlie-tranches-table">
+                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
                     <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
                 </table>
 
-                <h3>Charlie (Hydrogen)</h3>
-                <table class="tranches-table" id="charlie-tranches-table">
-                    <tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>
+                <h3>Delta (Electricity - Logarithmic)</h3>
+                <table class="tranches-table" id="delta-tranches-table">
+                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
+                    <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
+                </table>
+
+                <h3 id="echo-tranches-header">Echo (Bundles - Cobb-Douglas)</h3>
+                <table class="tranches-table" id="echo-tranches-table">
+                    <tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>
                     <tr><td colspan="4" style="color:#666">Run simulation...</td></tr>
                 </table>
             </div>
@@ -575,7 +632,7 @@
         </div>
 
         <div class="footer">
-            Hydrogen System Simulation | Price-Based Economics Model
+            Hydrogen System Simulation | Logarithmic & Cobb-Douglas Utility Functions
         </div>
     </div>
 
@@ -585,15 +642,18 @@
         // Node positions (normalized 0-1)
         let nodes = {
             'Alpha': { x: 0.5, y: 0.1, type: 'producer' },
-            'Bravo': { x: 0.25, y: 0.5, type: 'converter' },
-            'Charlie': { x: 0.25, y: 0.85, type: 'consumer' },
-            'Delta': { x: 0.75, y: 0.5, type: 'consumer' }
+            'Bravo': { x: 0.2, y: 0.5, type: 'converter' },
+            'Charlie': { x: 0.2, y: 0.85, type: 'consumer' },
+            'Delta': { x: 0.8, y: 0.5, type: 'consumer' },
+            'Echo': { x: 0.5, y: 0.85, type: 'consumer' }
         };
 
         const edges = [
             { source: 'Alpha', target: 'Bravo', carrier: 'electricity' },
             { source: 'Alpha', target: 'Delta', carrier: 'electricity' },
-            { source: 'Bravo', target: 'Charlie', carrier: 'hydrogen' }
+            { source: 'Alpha', target: 'Echo', carrier: 'electricity' },
+            { source: 'Bravo', target: 'Charlie', carrier: 'hydrogen' },
+            { source: 'Bravo', target: 'Echo', carrier: 'hydrogen' }
         ];
 
         // Initialize
@@ -603,19 +663,13 @@
             renderNetwork();
         });
 
-        // Parse tranche input "qty, price" -> [qty, price]
-        function parseTranche(inputId) {
-            const val = document.getElementById(inputId).value;
-            const parts = val.split(',').map(s => parseFloat(s.trim()));
-            return [parts[0] || 0, parts[1] || 0];
-        }
-
         // Load configuration
         async function loadConfig() {
             try {
                 const res = await fetch(`${API_BASE}/api/config`);
                 const config = await res.json();
 
+                // Basic parameters
                 document.getElementById('periods').value = config.periods;
                 document.getElementById('alpha_capacity').value = config.alpha_capacity;
                 document.getElementById('alpha_cost').value = config.alpha_cost;
@@ -624,19 +678,24 @@
                 document.getElementById('bravo_cost').value = config.bravo_cost;
                 document.getElementById('grid_cost').value = config.grid_cost;
 
-                // Load tranches
-                if (config.delta_tranches) {
-                    config.delta_tranches.forEach((t, i) => {
-                        const el = document.getElementById(`delta_t${i+1}`);
-                        if (el) el.value = `${t[0]}, ${t[1]}`;
-                    });
-                }
-                if (config.charlie_tranches) {
-                    config.charlie_tranches.forEach((t, i) => {
-                        const el = document.getElementById(`charlie_t${i+1}`);
-                        if (el) el.value = `${t[0]}, ${t[1]}`;
-                    });
-                }
+                // Charlie utility (logarithmic)
+                document.getElementById('charlie_scale').value = config.charlie_scale || 30;
+                document.getElementById('charlie_shape').value = config.charlie_shape || 5;
+                document.getElementById('charlie_max_quantity').value = config.charlie_max_quantity || 25;
+
+                // Delta utility (logarithmic)
+                document.getElementById('delta_scale').value = config.delta_scale || 25;
+                document.getElementById('delta_shape').value = config.delta_shape || 10;
+                document.getElementById('delta_max_quantity').value = config.delta_max_quantity || 50;
+
+                // Echo utility (Cobb-Douglas)
+                document.getElementById('include_echo').checked = config.include_echo !== false;
+                document.getElementById('echo_A').value = config.echo_A || 15;
+                document.getElementById('echo_alpha').value = config.echo_alpha || 0.4;
+                document.getElementById('echo_beta').value = config.echo_beta || 0.6;
+                document.getElementById('echo_h_per_bundle').value = config.echo_h_per_bundle || 1;
+                document.getElementById('echo_e_per_bundle').value = config.echo_e_per_bundle || 3;
+                document.getElementById('echo_max_bundles').value = config.echo_max_bundles || 15;
             } catch (e) {
                 console.error('Failed to load config:', e);
             }
@@ -767,7 +826,7 @@
             btn.disabled = true;
             icon.innerHTML = '<div class="spinner"></div>';
 
-            // Build config with tranches
+            // Build config with utility function parameters
             const config = {
                 periods: parseInt(document.getElementById('periods').value),
                 alpha_capacity: parseFloat(document.getElementById('alpha_capacity').value),
@@ -776,18 +835,25 @@
                 bravo_efficiency: parseFloat(document.getElementById('bravo_efficiency').value) / 100,
                 bravo_cost: parseFloat(document.getElementById('bravo_cost').value),
                 grid_cost: parseFloat(document.getElementById('grid_cost').value),
-                delta_tranches: [
-                    parseTranche('delta_t1'),
-                    parseTranche('delta_t2'),
-                    parseTranche('delta_t3'),
-                    parseTranche('delta_t4')
-                ],
-                charlie_tranches: [
-                    parseTranche('charlie_t1'),
-                    parseTranche('charlie_t2'),
-                    parseTranche('charlie_t3'),
-                    parseTranche('charlie_t4')
-                ]
+
+                // Charlie utility (logarithmic)
+                charlie_scale: parseFloat(document.getElementById('charlie_scale').value),
+                charlie_shape: parseFloat(document.getElementById('charlie_shape').value),
+                charlie_max_quantity: parseFloat(document.getElementById('charlie_max_quantity').value),
+
+                // Delta utility (logarithmic)
+                delta_scale: parseFloat(document.getElementById('delta_scale').value),
+                delta_shape: parseFloat(document.getElementById('delta_shape').value),
+                delta_max_quantity: parseFloat(document.getElementById('delta_max_quantity').value),
+
+                // Echo utility (Cobb-Douglas)
+                include_echo: document.getElementById('include_echo').checked,
+                echo_A: parseFloat(document.getElementById('echo_A').value),
+                echo_alpha: parseFloat(document.getElementById('echo_alpha').value),
+                echo_beta: parseFloat(document.getElementById('echo_beta').value),
+                echo_h_per_bundle: parseFloat(document.getElementById('echo_h_per_bundle').value),
+                echo_e_per_bundle: parseFloat(document.getElementById('echo_e_per_bundle').value),
+                echo_max_bundles: parseFloat(document.getElementById('echo_max_bundles').value),
             };
 
             try {
@@ -818,6 +884,7 @@
 
         function updateResults(data) {
             const s = data.summary;
+            const includeEcho = data.config && data.config.include_echo !== false;
 
             // Update time series charts
             if (data.flows) {
@@ -834,9 +901,25 @@
             document.getElementById('res-alpha').textContent = (s.total_alpha_production || 0).toFixed(1) + ' kWh';
             document.getElementById('res-grid').textContent = (s.total_grid_supply || 0).toFixed(1) + ' kWh';
 
-            // Consumption
-            document.getElementById('res-delta').textContent = (s.total_electricity_consumed || 0).toFixed(1) + ' kWh';
-            document.getElementById('res-charlie').textContent = (s.total_hydrogen_consumed || 0).toFixed(1) + ' kg';
+            // Consumption by consumer
+            document.getElementById('res-charlie').textContent = (s.charlie_hydrogen_consumed || 0).toFixed(1) + ' kg';
+            document.getElementById('res-delta').textContent = (s.delta_electricity_consumed || 0).toFixed(1) + ' kWh';
+            document.getElementById('res-echo-bundles').textContent = includeEcho ?
+                (s.echo_bundles_consumed || 0).toFixed(1) : 'N/A';
+
+            // Totals and Echo breakdown
+            document.getElementById('res-total-h2').textContent = (s.total_hydrogen_consumed || 0).toFixed(1) + ' kg';
+            document.getElementById('res-total-elec').textContent = (s.total_electricity_consumed || 0).toFixed(1) + ' kWh';
+
+            // Echo breakdown
+            const echoBreakdown = document.getElementById('echo-breakdown');
+            if (includeEcho) {
+                echoBreakdown.style.display = 'grid';
+                document.getElementById('res-echo-h2').textContent = (s.echo_hydrogen_consumed || 0).toFixed(1) + ' kg';
+                document.getElementById('res-echo-elec').textContent = (s.echo_electricity_consumed || 0).toFixed(1) + ' kWh';
+            } else {
+                echoBreakdown.style.display = 'none';
+            }
 
             // H2 marginal cost
             if (data.price_analysis && data.price_analysis.hydrogen) {
@@ -846,24 +929,45 @@
 
             // Tranche utilization tables
             if (data.price_analysis) {
-                updateTrancheTable('delta-tranches-table', data.price_analysis.electricity.consumer_tranches, 'kWh');
                 updateTrancheTable('charlie-tranches-table', data.price_analysis.hydrogen.consumer_tranches, 'kg');
+                updateTrancheTable('delta-tranches-table', data.price_analysis.electricity.consumer_tranches, 'kWh');
+
+                // Echo tranches
+                const echoHeader = document.getElementById('echo-tranches-header');
+                const echoTable = document.getElementById('echo-tranches-table');
+                if (includeEcho && data.price_analysis.echo && data.price_analysis.echo.bundles) {
+                    echoHeader.style.display = 'flex';
+                    echoTable.style.display = 'table';
+                    updateTrancheTable('echo-tranches-table', data.price_analysis.echo.bundles, 'bundles');
+                } else {
+                    echoHeader.style.display = 'none';
+                    echoTable.style.display = 'none';
+                }
             }
         }
 
         function updateTrancheTable(tableId, tranches, unit) {
             const table = document.getElementById(tableId);
-            table.innerHTML = '<tr><th>Tranche</th><th>WTP</th><th>Consumed</th><th class="utilization">Usage</th></tr>';
+            table.innerHTML = '<tr><th>Tranche</th><th>MU</th><th>Consumed</th><th class="utilization">Usage</th></tr>';
+
+            if (!tranches || tranches.length === 0) {
+                table.innerHTML += '<tr><td colspan="4" style="color:#666">No data</td></tr>';
+                return;
+            }
 
             tranches.forEach(t => {
                 const row = document.createElement('tr');
+                // Handle both willingness_to_pay and wtp field names
+                const wtp = t.willingness_to_pay || t.wtp || 0;
+                const consumed = t.consumed || 0;
+                const utilization = t.utilization || 0;
                 row.innerHTML = `
                     <td>T${t.tranche}</td>
-                    <td>${t.willingness_to_pay} ct</td>
-                    <td>${t.consumed.toFixed(1)} ${unit}</td>
+                    <td>${wtp.toFixed(1)} ct</td>
+                    <td>${consumed.toFixed(1)} ${unit}</td>
                     <td class="utilization">
                         <div class="utilization-bar">
-                            <div class="utilization-fill" style="width:${Math.min(100, t.utilization)}%"></div>
+                            <div class="utilization-fill" style="width:${Math.min(100, utilization)}%"></div>
                         </div>
                     </td>
                 `;
@@ -928,7 +1032,8 @@
             bravo: '#f0c040',      // Yellow - Electrolyzer
             delta: '#3498db',      // Blue - Delta consumption
             charlie: '#9b59b6',    // Purple - Charlie consumption
-            hydrogen: '#1abc9c'    // Teal - Hydrogen
+            hydrogen: '#1abc9c',   // Teal - Hydrogen
+            echo: '#e67e22'        // Orange - Echo consumption
         };
 
         const chartLayout = {
@@ -1011,10 +1116,16 @@
             const bravoConversion = getFlowData(['Bravo_conversion', 'bravo_conversion']);
             const deltaConsumption = getFlowData(['Delta_consumption', 'delta_consumption']);
             const charlieConsumption = getFlowData(['Charlie_consumption', 'charlie_consumption']);
+            const echoConsumption = getFlowData(['Echo_consumption', 'echo_consumption']);
+            const echoHydrogen = getFlowData(['Echo_hydrogen', 'echo_hydrogen']);
+            const echoElectricity = getFlowData(['Echo_electricity', 'echo_electricity']);
 
             // Estimate electrolyzer input/output from conversion data
             const bravoInput = bravoConversion.map(v => v / (data.config.bravo_efficiency || 0.7));
             const bravoOutput = bravoConversion;
+
+            // Include Echo?
+            const includeEcho = data.config && data.config.include_echo !== false;
 
             // Electricity chart - production vs consumption
             const electricityTraces = [
@@ -1056,6 +1167,19 @@
                 }
             ];
 
+            // Add Echo electricity if enabled
+            if (includeEcho) {
+                electricityTraces.push({
+                    x: hours,
+                    y: echoElectricity,
+                    name: 'Echo (Elec)',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.echo, width: 2, dash: 'dot' },
+                    marker: { size: 4 }
+                });
+            }
+
             Plotly.react('chart-electricity', electricityTraces, {
                 ...chartLayout,
                 title: { text: 'Electricity Flows', font: { size: 14, color: '#4ecca3' } },
@@ -1084,6 +1208,19 @@
                     marker: { size: 5 }
                 }
             ];
+
+            // Add Echo hydrogen if enabled
+            if (includeEcho) {
+                hydrogenTraces.push({
+                    x: hours,
+                    y: echoHydrogen,
+                    name: 'Echo (H2)',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.echo, width: 2, dash: 'dot' },
+                    marker: { size: 5 }
+                });
+            }
 
             Plotly.react('chart-hydrogen', hydrogenTraces, {
                 ...chartLayout,
@@ -1138,6 +1275,21 @@
                     stackgroup: 'demand'
                 }
             ];
+
+            // Add Echo electricity demand if enabled
+            if (includeEcho) {
+                stackedTraces.push({
+                    x: hours,
+                    y: echoElectricity.map(v => -v),
+                    name: 'Echo (Elec)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tonexty',
+                    line: { color: chartColors.echo, width: 0 },
+                    fillcolor: 'rgba(230, 126, 34, 0.7)',
+                    stackgroup: 'demand'
+                });
+            }
 
             Plotly.react('chart-stacked', stackedTraces, {
                 ...chartLayout,
