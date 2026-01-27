@@ -21,7 +21,8 @@ try:
     from simulation import (
         SimulationConfig, HydrogenSystemSimulation,
         LogarithmicUtility, CobbDouglasUtility,
-        GeneratorConfig, TransformerConfig, ConsumerConfig
+        GeneratorConfig, TransformerConfig, ConsumerConfig,
+        BatteryConfig, H2StorageConfig
     )
     SIMULATION_AVAILABLE = True
 except ImportError as e:
@@ -99,7 +100,9 @@ DEFAULT_NODE_REGISTRY = {
          'cd_A': 15.0, 'cd_alpha': 0.4, 'cd_beta': 0.6, 'cd_max_bundles': 15.0,
          'cd_h_per_bundle': 1.0, 'cd_e_per_bundle': 3.0, 'cd_num_tranches': 5,
          'position': [0, -2, 0]}
-    ]
+    ],
+    'batteries': [],
+    'h2_storage': []
 }
 
 # Active node registry
@@ -180,6 +183,38 @@ def sync_nodes_to_network():
                     'target': cons['name'],
                     'carrier': 'hydrogen'
                 })
+
+    # Add batteries
+    for batt in node_registry.get('batteries', []):
+        network_nodes.append({
+            'name': batt['name'],
+            'node_type': 'storage',
+            'carrier': 'electricity',
+            'position': batt.get('position', [3, 0, 0])
+        })
+        # Batteries connect to electricity bus (bidirectional)
+        for gen in node_registry['generators']:
+            network_edges.append({
+                'source': gen['name'],
+                'target': batt['name'],
+                'carrier': 'electricity'
+            })
+
+    # Add H2 storage
+    for h2s in node_registry.get('h2_storage', []):
+        network_nodes.append({
+            'name': h2s['name'],
+            'node_type': 'storage',
+            'carrier': 'hydrogen',
+            'position': h2s.get('position', [-3, -1, 0])
+        })
+        # H2 storage connects to hydrogen bus (via transformers)
+        for trans in node_registry['transformers']:
+            network_edges.append({
+                'source': trans['name'],
+                'target': h2s['name'],
+                'carrier': 'hydrogen'
+            })
 
     # Save to network JSON
     with open(JSON_PATH, 'w') as f:
@@ -330,12 +365,47 @@ def run_simulation():
                 consumer.cd_num_tranches = int(c.get('cd_num_tranches', 5))
             consumers.append(consumer)
 
+        # Build battery configs from node registry
+        batteries = [
+            BatteryConfig(
+                name=b['name'],
+                capacity=b.get('capacity', 100.0),
+                charge_rate=b.get('charge_rate', 50.0),
+                discharge_rate=b.get('discharge_rate', 50.0),
+                efficiency_in=b.get('efficiency_in', 0.95),
+                efficiency_out=b.get('efficiency_out', 0.95),
+                loss_rate=b.get('loss_rate', 0.0002),
+                initial_level=b.get('initial_level', 0.5),
+                min_level=b.get('min_level', 0.1),
+                cost=b.get('cost', 1.0)
+            )
+            for b in node_registry.get('batteries', [])
+        ]
+
+        # Build H2 storage configs from node registry
+        h2_storage = [
+            H2StorageConfig(
+                name=h['name'],
+                capacity=h.get('capacity', 50.0),
+                injection_rate=h.get('injection_rate', 10.0),
+                withdrawal_rate=h.get('withdrawal_rate', 10.0),
+                efficiency_in=h.get('efficiency_in', 0.95),
+                efficiency_out=h.get('efficiency_out', 0.99),
+                loss_rate=h.get('loss_rate', 0.0001),
+                initial_level=h.get('initial_level', 0.5),
+                cost=h.get('cost', 0.5)
+            )
+            for h in node_registry.get('h2_storage', [])
+        ]
+
         config = SimulationConfig(
             periods=int(current_config['periods']),
             grid_cost=current_config['grid_cost'],
             generators=generators,
             transformers=transformers,
-            consumers=consumers
+            consumers=consumers,
+            batteries=batteries,
+            h2_storage=h2_storage
         )
 
         sim = HydrogenSystemSimulation(config)
@@ -627,6 +697,158 @@ def manage_consumer(name):
     sync_nodes_to_network()
 
     return jsonify({'status': 'ok', 'consumer': consumer})
+
+
+# =============================================================================
+# Storage API Endpoints
+# =============================================================================
+
+@app.route('/api/nodes/batteries', methods=['GET', 'POST'])
+def manage_batteries():
+    """List or add batteries."""
+    if request.method == 'GET':
+        return jsonify(node_registry.get('batteries', []))
+
+    # POST - add new battery
+    data = request.json
+    if not data.get('name'):
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+
+    if 'batteries' not in node_registry:
+        node_registry['batteries'] = []
+
+    if any(b['name'] == data['name'] for b in node_registry['batteries']):
+        return jsonify({'status': 'error', 'message': 'Battery with this name already exists'}), 400
+
+    battery = {
+        'name': data['name'],
+        'capacity': float(data.get('capacity', 100.0)),
+        'charge_rate': float(data.get('charge_rate', 50.0)),
+        'discharge_rate': float(data.get('discharge_rate', 50.0)),
+        'efficiency_in': float(data.get('efficiency_in', 0.95)),
+        'efficiency_out': float(data.get('efficiency_out', 0.95)),
+        'loss_rate': float(data.get('loss_rate', 0.0002)),
+        'initial_level': float(data.get('initial_level', 0.5)),
+        'min_level': float(data.get('min_level', 0.1)),
+        'cost': float(data.get('cost', 1.0)),
+        'position': data.get('position', [3, 0, 0])
+    }
+    node_registry['batteries'].append(battery)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'battery': battery})
+
+
+@app.route('/api/nodes/batteries/<name>', methods=['GET', 'PUT', 'DELETE'])
+def manage_battery(name):
+    """Get, update or delete a specific battery."""
+    batteries = node_registry.get('batteries', [])
+    batt_idx = next((i for i, b in enumerate(batteries) if b['name'] == name), None)
+
+    if batt_idx is None:
+        return jsonify({'status': 'error', 'message': 'Battery not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(batteries[batt_idx])
+
+    if request.method == 'DELETE':
+        del batteries[batt_idx]
+        save_node_registry()
+        sync_nodes_to_network()
+        return jsonify({'status': 'ok', 'message': f'Battery {name} deleted'})
+
+    # PUT - update
+    data = request.json
+    batteries[batt_idx].update({
+        'capacity': float(data.get('capacity', batteries[batt_idx]['capacity'])),
+        'charge_rate': float(data.get('charge_rate', batteries[batt_idx].get('charge_rate', 50.0))),
+        'discharge_rate': float(data.get('discharge_rate', batteries[batt_idx].get('discharge_rate', 50.0))),
+        'efficiency_in': float(data.get('efficiency_in', batteries[batt_idx].get('efficiency_in', 0.95))),
+        'efficiency_out': float(data.get('efficiency_out', batteries[batt_idx].get('efficiency_out', 0.95))),
+        'loss_rate': float(data.get('loss_rate', batteries[batt_idx].get('loss_rate', 0.0002))),
+        'initial_level': float(data.get('initial_level', batteries[batt_idx].get('initial_level', 0.5))),
+        'min_level': float(data.get('min_level', batteries[batt_idx].get('min_level', 0.1))),
+        'cost': float(data.get('cost', batteries[batt_idx].get('cost', 1.0))),
+        'position': data.get('position', batteries[batt_idx].get('position', [3, 0, 0]))
+    })
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'battery': batteries[batt_idx]})
+
+
+@app.route('/api/nodes/h2_storage', methods=['GET', 'POST'])
+def manage_h2_storage_list():
+    """List or add H2 storage."""
+    if request.method == 'GET':
+        return jsonify(node_registry.get('h2_storage', []))
+
+    # POST - add new H2 storage
+    data = request.json
+    if not data.get('name'):
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+
+    if 'h2_storage' not in node_registry:
+        node_registry['h2_storage'] = []
+
+    if any(h['name'] == data['name'] for h in node_registry['h2_storage']):
+        return jsonify({'status': 'error', 'message': 'H2 storage with this name already exists'}), 400
+
+    h2_storage = {
+        'name': data['name'],
+        'capacity': float(data.get('capacity', 50.0)),
+        'injection_rate': float(data.get('injection_rate', 10.0)),
+        'withdrawal_rate': float(data.get('withdrawal_rate', 10.0)),
+        'efficiency_in': float(data.get('efficiency_in', 0.95)),
+        'efficiency_out': float(data.get('efficiency_out', 0.99)),
+        'loss_rate': float(data.get('loss_rate', 0.0001)),
+        'initial_level': float(data.get('initial_level', 0.5)),
+        'cost': float(data.get('cost', 0.5)),
+        'position': data.get('position', [-3, -1, 0])
+    }
+    node_registry['h2_storage'].append(h2_storage)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'h2_storage': h2_storage})
+
+
+@app.route('/api/nodes/h2_storage/<name>', methods=['GET', 'PUT', 'DELETE'])
+def manage_h2_storage(name):
+    """Get, update or delete a specific H2 storage."""
+    h2_storage_list = node_registry.get('h2_storage', [])
+    h2_idx = next((i for i, h in enumerate(h2_storage_list) if h['name'] == name), None)
+
+    if h2_idx is None:
+        return jsonify({'status': 'error', 'message': 'H2 storage not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(h2_storage_list[h2_idx])
+
+    if request.method == 'DELETE':
+        del h2_storage_list[h2_idx]
+        save_node_registry()
+        sync_nodes_to_network()
+        return jsonify({'status': 'ok', 'message': f'H2 storage {name} deleted'})
+
+    # PUT - update
+    data = request.json
+    h2_storage_list[h2_idx].update({
+        'capacity': float(data.get('capacity', h2_storage_list[h2_idx]['capacity'])),
+        'injection_rate': float(data.get('injection_rate', h2_storage_list[h2_idx].get('injection_rate', 10.0))),
+        'withdrawal_rate': float(data.get('withdrawal_rate', h2_storage_list[h2_idx].get('withdrawal_rate', 10.0))),
+        'efficiency_in': float(data.get('efficiency_in', h2_storage_list[h2_idx].get('efficiency_in', 0.95))),
+        'efficiency_out': float(data.get('efficiency_out', h2_storage_list[h2_idx].get('efficiency_out', 0.99))),
+        'loss_rate': float(data.get('loss_rate', h2_storage_list[h2_idx].get('loss_rate', 0.0001))),
+        'initial_level': float(data.get('initial_level', h2_storage_list[h2_idx].get('initial_level', 0.5))),
+        'cost': float(data.get('cost', h2_storage_list[h2_idx].get('cost', 0.5))),
+        'position': data.get('position', h2_storage_list[h2_idx].get('position', [-3, -1, 0]))
+    })
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'h2_storage': h2_storage_list[h2_idx]})
 
 
 @app.route('/api/blender/export', methods=['POST'])

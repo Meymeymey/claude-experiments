@@ -204,6 +204,12 @@
             border-radius: 50%;
         }
 
+        .node.storage {
+            background: #9b59b6;
+            color: #fff;
+            border-radius: 8px;
+        }
+
         .node:hover {
             transform: scale(1.1);
         }
@@ -436,7 +442,7 @@
         /* Node management grid */
         .node-columns {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 20px;
         }
 
@@ -795,6 +801,24 @@
                             + Add Consumer
                         </button>
                     </div>
+
+                    <!-- Batteries Column -->
+                    <div class="node-column">
+                        <h3>Batteries <span class="count" id="batt-count">0</span></h3>
+                        <div class="node-list" id="batteries-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('battery')" style="width:100%;">
+                            + Add Battery
+                        </button>
+                    </div>
+
+                    <!-- H2 Storage Column -->
+                    <div class="node-column">
+                        <h3>H2 Storage <span class="count" id="h2s-count">0</span></h3>
+                        <div class="node-list" id="h2storage-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('h2_storage')" style="width:100%;">
+                            + Add H2 Storage
+                        </button>
+                    </div>
                 </div>
 
                 <div id="node-status" style="margin-top:15px;"></div>
@@ -913,6 +937,96 @@
                                 <input type="number" id="cons-cd-max" value="15" min="1" step="1">
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Battery fields -->
+                <div id="battery-fields" style="display:none;">
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Capacity (kWh)</label>
+                            <input type="number" id="batt-capacity" value="100" min="0" step="10">
+                        </div>
+                        <div class="param-group">
+                            <label>Cost (ct/kWh)</label>
+                            <input type="number" id="batt-cost" value="1" min="0" step="0.1">
+                        </div>
+                    </div>
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Charge Rate (kW)</label>
+                            <input type="number" id="batt-charge-rate" value="50" min="0" step="5">
+                        </div>
+                        <div class="param-group">
+                            <label>Discharge Rate (kW)</label>
+                            <input type="number" id="batt-discharge-rate" value="50" min="0" step="5">
+                        </div>
+                    </div>
+                    <div class="param-row-3">
+                        <div class="param-group">
+                            <label>Efficiency In (%)</label>
+                            <input type="number" id="batt-eff-in" value="95" min="0" max="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <label>Efficiency Out (%)</label>
+                            <input type="number" id="batt-eff-out" value="95" min="0" max="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <label>Loss Rate (%/h)</label>
+                            <input type="number" id="batt-loss" value="0.02" min="0" max="10" step="0.01">
+                        </div>
+                    </div>
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Initial Level (%)</label>
+                            <input type="number" id="batt-initial" value="50" min="0" max="100" step="5">
+                        </div>
+                        <div class="param-group">
+                            <label>Min Level (%)</label>
+                            <input type="number" id="batt-min" value="10" min="0" max="100" step="5">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- H2 Storage fields -->
+                <div id="h2storage-fields" style="display:none;">
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Capacity (kg)</label>
+                            <input type="number" id="h2s-capacity" value="50" min="0" step="10">
+                        </div>
+                        <div class="param-group">
+                            <label>Cost (ct/kg)</label>
+                            <input type="number" id="h2s-cost" value="0.5" min="0" step="0.1">
+                        </div>
+                    </div>
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Injection Rate (kg/h)</label>
+                            <input type="number" id="h2s-injection-rate" value="10" min="0" step="1">
+                        </div>
+                        <div class="param-group">
+                            <label>Withdrawal Rate (kg/h)</label>
+                            <input type="number" id="h2s-withdrawal-rate" value="10" min="0" step="1">
+                        </div>
+                    </div>
+                    <div class="param-row-3">
+                        <div class="param-group">
+                            <label>Efficiency In (%)</label>
+                            <input type="number" id="h2s-eff-in" value="95" min="0" max="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <label>Efficiency Out (%)</label>
+                            <input type="number" id="h2s-eff-out" value="99" min="0" max="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <label>Loss Rate (%/h)</label>
+                            <input type="number" id="h2s-loss" value="0.01" min="0" max="10" step="0.01">
+                        </div>
+                    </div>
+                    <div class="param-group">
+                        <label>Initial Level (%)</label>
+                        <input type="number" id="h2s-initial" value="50" min="0" max="100" step="5">
                     </div>
                 </div>
 
@@ -1586,7 +1700,9 @@
         let nodeRegistry = {
             generators: [],
             transformers: [],
-            consumers: []
+            consumers: [],
+            batteries: [],
+            h2_storage: []
         };
 
         let currentNodeType = null;
@@ -1644,6 +1760,30 @@
                 </div>
             `}).join('');
             document.getElementById('cons-count').textContent = nodeRegistry.consumers.length;
+
+            // Batteries
+            const battList = document.getElementById('batteries-list');
+            battList.innerHTML = (nodeRegistry.batteries || []).map(b => `
+                <div class="node-item">
+                    <span class="node-name">${b.name}</span>
+                    <span class="node-info">${b.capacity} kWh @ ${b.cost} ct</span>
+                    <button class="btn-small btn-edit" onclick="editNode('battery', '${b.name}')">Edit</button>
+                    <button class="btn-small btn-delete" onclick="deleteNode('battery', '${b.name}')">X</button>
+                </div>
+            `).join('');
+            document.getElementById('batt-count').textContent = (nodeRegistry.batteries || []).length;
+
+            // H2 Storage
+            const h2sList = document.getElementById('h2storage-list');
+            h2sList.innerHTML = (nodeRegistry.h2_storage || []).map(h => `
+                <div class="node-item">
+                    <span class="node-name">${h.name}</span>
+                    <span class="node-info">${h.capacity} kg @ ${h.cost} ct</span>
+                    <button class="btn-small btn-edit" onclick="editNode('h2_storage', '${h.name}')">Edit</button>
+                    <button class="btn-small btn-delete" onclick="deleteNode('h2_storage', '${h.name}')">X</button>
+                </div>
+            `).join('');
+            document.getElementById('h2s-count').textContent = (nodeRegistry.h2_storage || []).length;
         }
 
         // Rebuild nodes and edges objects from registry
@@ -1697,6 +1837,34 @@
                 }
             });
 
+            // Add batteries
+            (nodeRegistry.batteries || []).forEach((b, i) => {
+                const pos = b.position || [3, 0, 0];
+                nodes[b.name] = {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6,
+                    type: 'storage'
+                };
+                // Connect to generators (electricity bus)
+                nodeRegistry.generators.forEach(g => {
+                    edges.push({ source: g.name, target: b.name, carrier: 'electricity' });
+                });
+            });
+
+            // Add H2 storage
+            (nodeRegistry.h2_storage || []).forEach((h, i) => {
+                const pos = h.position || [-3, -1, 0];
+                nodes[h.name] = {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6,
+                    type: 'storage'
+                };
+                // Connect to transformers (hydrogen bus)
+                nodeRegistry.transformers.forEach(t => {
+                    edges.push({ source: t.name, target: h.name, carrier: 'hydrogen' });
+                });
+            });
+
             renderNetwork();
         }
 
@@ -1706,7 +1874,13 @@
             editingNodeName = null;
 
             // Set modal title
-            const titles = { generator: 'Add Generator', transformer: 'Add Transformer', consumer: 'Add Consumer' };
+            const titles = {
+                generator: 'Add Generator',
+                transformer: 'Add Transformer',
+                consumer: 'Add Consumer',
+                battery: 'Add Battery',
+                h2_storage: 'Add H2 Storage'
+            };
             document.getElementById('modal-title').textContent = titles[nodeType];
 
             // Reset form
@@ -1717,6 +1891,8 @@
             document.getElementById('generator-fields').style.display = nodeType === 'generator' ? 'block' : 'none';
             document.getElementById('transformer-fields').style.display = nodeType === 'transformer' ? 'block' : 'none';
             document.getElementById('consumer-fields').style.display = nodeType === 'consumer' ? 'block' : 'none';
+            document.getElementById('battery-fields').style.display = nodeType === 'battery' ? 'block' : 'none';
+            document.getElementById('h2storage-fields').style.display = nodeType === 'h2_storage' ? 'block' : 'none';
 
             // Reset default values
             if (nodeType === 'generator') {
@@ -1730,6 +1906,25 @@
             } else if (nodeType === 'consumer') {
                 document.getElementById('cons-type').value = 'logarithmic_electricity';
                 toggleConsumerParams();
+            } else if (nodeType === 'battery') {
+                document.getElementById('batt-capacity').value = 100;
+                document.getElementById('batt-cost').value = 1;
+                document.getElementById('batt-charge-rate').value = 50;
+                document.getElementById('batt-discharge-rate').value = 50;
+                document.getElementById('batt-eff-in').value = 95;
+                document.getElementById('batt-eff-out').value = 95;
+                document.getElementById('batt-loss').value = 0.02;
+                document.getElementById('batt-initial').value = 50;
+                document.getElementById('batt-min').value = 10;
+            } else if (nodeType === 'h2_storage') {
+                document.getElementById('h2s-capacity').value = 50;
+                document.getElementById('h2s-cost').value = 0.5;
+                document.getElementById('h2s-injection-rate').value = 10;
+                document.getElementById('h2s-withdrawal-rate').value = 10;
+                document.getElementById('h2s-eff-in').value = 95;
+                document.getElementById('h2s-eff-out').value = 99;
+                document.getElementById('h2s-loss').value = 0.01;
+                document.getElementById('h2s-initial').value = 50;
             }
 
             document.getElementById('node-modal').classList.add('active');
@@ -1800,6 +1995,35 @@
                     data.cd_e_per_bundle = parseFloat(document.getElementById('cons-cd-e').value);
                     data.cd_max_bundles = parseFloat(document.getElementById('cons-cd-max').value);
                 }
+            } else if (currentNodeType === 'battery') {
+                endpoint = editingNodeName ? `/api/nodes/batteries/${editingNodeName}` : '/api/nodes/batteries';
+                method = editingNodeName ? 'PUT' : 'POST';
+                data = {
+                    name: name,
+                    capacity: parseFloat(document.getElementById('batt-capacity').value),
+                    cost: parseFloat(document.getElementById('batt-cost').value),
+                    charge_rate: parseFloat(document.getElementById('batt-charge-rate').value),
+                    discharge_rate: parseFloat(document.getElementById('batt-discharge-rate').value),
+                    efficiency_in: parseFloat(document.getElementById('batt-eff-in').value) / 100,
+                    efficiency_out: parseFloat(document.getElementById('batt-eff-out').value) / 100,
+                    loss_rate: parseFloat(document.getElementById('batt-loss').value) / 100,
+                    initial_level: parseFloat(document.getElementById('batt-initial').value) / 100,
+                    min_level: parseFloat(document.getElementById('batt-min').value) / 100
+                };
+            } else if (currentNodeType === 'h2_storage') {
+                endpoint = editingNodeName ? `/api/nodes/h2_storage/${editingNodeName}` : '/api/nodes/h2_storage';
+                method = editingNodeName ? 'PUT' : 'POST';
+                data = {
+                    name: name,
+                    capacity: parseFloat(document.getElementById('h2s-capacity').value),
+                    cost: parseFloat(document.getElementById('h2s-cost').value),
+                    injection_rate: parseFloat(document.getElementById('h2s-injection-rate').value),
+                    withdrawal_rate: parseFloat(document.getElementById('h2s-withdrawal-rate').value),
+                    efficiency_in: parseFloat(document.getElementById('h2s-eff-in').value) / 100,
+                    efficiency_out: parseFloat(document.getElementById('h2s-eff-out').value) / 100,
+                    loss_rate: parseFloat(document.getElementById('h2s-loss').value) / 100,
+                    initial_level: parseFloat(document.getElementById('h2s-initial').value) / 100
+                };
             }
 
             try {
@@ -1824,15 +2048,28 @@
 
         // Edit existing node
         function editNode(nodeType, name) {
-            const collections = { generator: 'generators', transformer: 'transformers', consumer: 'consumers' };
-            const node = nodeRegistry[collections[nodeType]].find(n => n.name === name);
+            const collections = {
+                generator: 'generators',
+                transformer: 'transformers',
+                consumer: 'consumers',
+                battery: 'batteries',
+                h2_storage: 'h2_storage'
+            };
+            const collection = nodeRegistry[collections[nodeType]] || [];
+            const node = collection.find(n => n.name === name);
             if (!node) return;
 
             openAddNodeModal(nodeType);
             editingNodeName = name;
 
             // Update modal title
-            const titles = { generator: 'Edit Generator', transformer: 'Edit Transformer', consumer: 'Edit Consumer' };
+            const titles = {
+                generator: 'Edit Generator',
+                transformer: 'Edit Transformer',
+                consumer: 'Edit Consumer',
+                battery: 'Edit Battery',
+                h2_storage: 'Edit H2 Storage'
+            };
             document.getElementById('modal-title').textContent = titles[nodeType];
 
             // Populate form
@@ -1862,6 +2099,25 @@
                     document.getElementById('cons-cd-e').value = node.cd_e_per_bundle || 3;
                     document.getElementById('cons-cd-max').value = node.cd_max_bundles || 15;
                 }
+            } else if (nodeType === 'battery') {
+                document.getElementById('batt-capacity').value = node.capacity;
+                document.getElementById('batt-cost').value = node.cost;
+                document.getElementById('batt-charge-rate').value = node.charge_rate || 50;
+                document.getElementById('batt-discharge-rate').value = node.discharge_rate || 50;
+                document.getElementById('batt-eff-in').value = (node.efficiency_in || 0.95) * 100;
+                document.getElementById('batt-eff-out').value = (node.efficiency_out || 0.95) * 100;
+                document.getElementById('batt-loss').value = (node.loss_rate || 0.0002) * 100;
+                document.getElementById('batt-initial').value = (node.initial_level || 0.5) * 100;
+                document.getElementById('batt-min').value = (node.min_level || 0.1) * 100;
+            } else if (nodeType === 'h2_storage') {
+                document.getElementById('h2s-capacity').value = node.capacity;
+                document.getElementById('h2s-cost').value = node.cost;
+                document.getElementById('h2s-injection-rate').value = node.injection_rate || 10;
+                document.getElementById('h2s-withdrawal-rate').value = node.withdrawal_rate || 10;
+                document.getElementById('h2s-eff-in').value = (node.efficiency_in || 0.95) * 100;
+                document.getElementById('h2s-eff-out').value = (node.efficiency_out || 0.99) * 100;
+                document.getElementById('h2s-loss').value = (node.loss_rate || 0.0001) * 100;
+                document.getElementById('h2s-initial').value = (node.initial_level || 0.5) * 100;
             }
         }
 
@@ -1869,7 +2125,13 @@
         async function deleteNode(nodeType, name) {
             if (!confirm(`Delete ${nodeType} "${name}"?`)) return;
 
-            const collections = { generator: 'generators', transformer: 'transformers', consumer: 'consumers' };
+            const collections = {
+                generator: 'generators',
+                transformer: 'transformers',
+                consumer: 'consumers',
+                battery: 'batteries',
+                h2_storage: 'h2_storage'
+            };
 
             try {
                 const res = await fetch(`${API_BASE}/api/nodes/${collections[nodeType]}/${name}`, {

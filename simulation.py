@@ -190,6 +190,35 @@ class ConsumerConfig:
 
 
 @dataclass
+class BatteryConfig:
+    """Configuration for electricity storage (battery)."""
+    name: str
+    capacity: float = 100.0           # kWh storage capacity
+    charge_rate: float = 50.0         # kW max charge rate
+    discharge_rate: float = 50.0      # kW max discharge rate
+    efficiency_in: float = 0.95       # Charging efficiency
+    efficiency_out: float = 0.95      # Discharging efficiency
+    loss_rate: float = 0.0002         # Hourly loss rate (0.02%)
+    initial_level: float = 0.5        # Initial fill level (fraction)
+    min_level: float = 0.1            # Minimum allowed level (fraction)
+    cost: float = 1.0                 # Cost per kWh throughput (ct/kWh)
+
+
+@dataclass
+class H2StorageConfig:
+    """Configuration for hydrogen storage (tank/cavern)."""
+    name: str
+    capacity: float = 50.0            # kg storage capacity
+    injection_rate: float = 10.0      # kg/h max injection rate
+    withdrawal_rate: float = 10.0     # kg/h max withdrawal rate
+    efficiency_in: float = 0.95       # Compression/injection efficiency
+    efficiency_out: float = 0.99      # Withdrawal efficiency
+    loss_rate: float = 0.0001         # Hourly loss rate (0.01%)
+    initial_level: float = 0.5        # Initial fill level (fraction)
+    cost: float = 0.5                 # Cost per kg throughput (ct/kg)
+
+
+@dataclass
 class SimulationConfig:
     """Configuration for the energy system simulation."""
     # Time parameters
@@ -203,6 +232,8 @@ class SimulationConfig:
     generators: List[GeneratorConfig] = field(default_factory=list)
     transformers: List[TransformerConfig] = field(default_factory=list)
     consumers: List[ConsumerConfig] = field(default_factory=list)
+    batteries: List[BatteryConfig] = field(default_factory=list)
+    h2_storage: List[H2StorageConfig] = field(default_factory=list)
 
     # Legacy fields for backwards compatibility
     alpha_capacity: float = 100.0      # Max capacity (kW)
@@ -448,6 +479,60 @@ class HydrogenSystemSimulation:
                 if cons_config.name == 'Echo':
                     self._echo_tranches = tranches
 
+        # Build battery storage dynamically
+        for batt_config in self.config.batteries:
+            battery = solph.components.GenericStorage(
+                label=batt_config.name,
+                nominal_storage_capacity=batt_config.capacity,
+                inputs={
+                    bus_electricity: solph.Flow(
+                        nominal_value=batt_config.charge_rate,
+                        variable_costs=batt_config.cost,
+                    )
+                },
+                outputs={
+                    bus_electricity: solph.Flow(
+                        nominal_value=batt_config.discharge_rate,
+                    )
+                },
+                loss_rate=batt_config.loss_rate,
+                initial_storage_level=batt_config.initial_level,
+                min_storage_level=batt_config.min_level,
+                max_storage_level=1.0,
+                inflow_conversion_factor=batt_config.efficiency_in,
+                outflow_conversion_factor=batt_config.efficiency_out,
+                balanced=True,  # Final storage = initial storage
+            )
+            components_to_add.append(battery)
+            self._components[batt_config.name] = battery
+
+        # Build hydrogen storage dynamically
+        for h2_config in self.config.h2_storage:
+            h2_tank = solph.components.GenericStorage(
+                label=h2_config.name,
+                nominal_storage_capacity=h2_config.capacity,
+                inputs={
+                    bus_hydrogen: solph.Flow(
+                        nominal_value=h2_config.injection_rate,
+                        variable_costs=h2_config.cost,
+                    )
+                },
+                outputs={
+                    bus_hydrogen: solph.Flow(
+                        nominal_value=h2_config.withdrawal_rate,
+                    )
+                },
+                loss_rate=h2_config.loss_rate,
+                initial_storage_level=h2_config.initial_level,
+                min_storage_level=0.0,  # H2 tanks can be emptied
+                max_storage_level=1.0,
+                inflow_conversion_factor=h2_config.efficiency_in,
+                outflow_conversion_factor=h2_config.efficiency_out,
+                balanced=True,  # Final storage = initial storage
+            )
+            components_to_add.append(h2_tank)
+            self._components[h2_config.name] = h2_tank
+
         # Excess sinks (curtailment) - no cost, just allows excess
         excess_electricity = solph.components.Sink(
             label='Excess_Electricity',
@@ -468,7 +553,8 @@ class HydrogenSystemSimulation:
         self.energy_system.add(*components_to_add)
 
         print(f"Energy system built: {len(self.config.generators)} generators, "
-              f"{len(self.config.transformers)} transformers, {len(self.config.consumers)} consumers.")
+              f"{len(self.config.transformers)} transformers, {len(self.config.consumers)} consumers, "
+              f"{len(self.config.batteries)} batteries, {len(self.config.h2_storage)} H2 storage.")
 
     def _generate_production_profile(self, profile_type: str = 'solar') -> list:
         """Generate electricity production availability profile based on type."""
@@ -574,6 +660,18 @@ class HydrogenSystemSimulation:
                     flows[f'{cons_config.name}_hydrogen'] = cons_total * cons_config.cd_h_per_bundle
                     flows[f'{cons_config.name}_electricity'] = cons_total * cons_config.cd_e_per_bundle
 
+        # Battery storage state
+        for batt_config in self.config.batteries:
+            batt_data = views.node(self.results, batt_config.name)
+            if batt_data is not None and 'sequences' in batt_data:
+                flows[f'{batt_config.name}_storage'] = batt_data['sequences']
+
+        # H2 storage state
+        for h2_config in self.config.h2_storage:
+            h2_data = views.node(self.results, h2_config.name)
+            if h2_data is not None and 'sequences' in h2_data:
+                flows[f'{h2_config.name}_storage'] = h2_data['sequences']
+
         return flows
 
     def get_summary(self) -> Dict[str, float]:
@@ -677,8 +775,39 @@ class HydrogenSystemSimulation:
             summary['total_hydrogen_consumed'] = total_h2_consumed
             summary['total_electricity_consumed'] = total_elec_consumed
 
+            # Storage statistics
+            total_storage_cost = 0.0
+
+            # Battery storage
+            for batt_config in self.config.batteries:
+                batt_data = views.node(self.results, batt_config.name)
+                if batt_data is not None and 'sequences' in batt_data:
+                    # Extract charge/discharge from sequences
+                    batt_df = batt_data['sequences']
+                    # Sum all flows (charge + discharge throughput)
+                    batt_throughput = float(batt_df.sum().sum()) / 2  # Divide by 2 as flows are double-counted
+                    batt_cost = batt_throughput * batt_config.cost
+                    summary[f'{batt_config.name}_throughput'] = batt_throughput
+                    summary[f'{batt_config.name}_cost'] = batt_cost
+                    summary[f'{batt_config.name}_capacity'] = batt_config.capacity
+                    total_storage_cost += batt_cost
+
+            # H2 storage
+            for h2_config in self.config.h2_storage:
+                h2_data = views.node(self.results, h2_config.name)
+                if h2_data is not None and 'sequences' in h2_data:
+                    h2_df = h2_data['sequences']
+                    h2_throughput = float(h2_df.sum().sum()) / 2
+                    h2_cost = h2_throughput * h2_config.cost
+                    summary[f'{h2_config.name}_throughput'] = h2_throughput
+                    summary[f'{h2_config.name}_cost'] = h2_cost
+                    summary[f'{h2_config.name}_capacity'] = h2_config.capacity
+                    total_storage_cost += h2_cost
+
+            summary['total_storage_cost'] = total_storage_cost
+
             # Total welfare = utility - costs
-            total_costs = total_production_cost + total_transformer_cost
+            total_costs = total_production_cost + total_transformer_cost + total_storage_cost
             summary['total_costs'] = total_costs
             summary['total_utility'] = total_utility
             summary['total_welfare'] = total_utility - total_costs
