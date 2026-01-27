@@ -123,6 +123,72 @@ class CobbDouglasUtility:
         return tranches
 
 
+# =============================================================================
+# Dynamic Node Configuration Classes
+# =============================================================================
+
+@dataclass
+class GeneratorConfig:
+    """Configuration for an electricity generator node."""
+    name: str
+    capacity: float = 100.0       # Max capacity (kW)
+    cost: float = 8.0             # Production cost (ct/kWh)
+    profile_type: str = 'solar'   # 'solar', 'flat', 'wind'
+
+
+@dataclass
+class TransformerConfig:
+    """Configuration for a transformer/converter node (e.g., electrolyzer)."""
+    name: str
+    capacity: float = 50.0        # Max output power
+    efficiency: float = 0.7       # Conversion efficiency
+    cost: float = 1.5             # Transformation cost (ct/kWh input)
+    input_carrier: str = 'electricity'
+    output_carrier: str = 'hydrogen'
+
+
+@dataclass
+class ConsumerConfig:
+    """Configuration for a consumer node."""
+    name: str
+    consumer_type: str            # 'logarithmic_electricity', 'logarithmic_hydrogen', 'cobb_douglas'
+    carrier: str                  # 'electricity', 'hydrogen', 'both'
+    # Logarithmic utility params (for single-carrier consumers)
+    log_scale: float = 30.0
+    log_shape: float = 5.0
+    log_max_quantity: float = 25.0
+    log_num_tranches: int = 5
+    # Cobb-Douglas params (for dual-carrier consumers)
+    cd_A: float = 15.0
+    cd_alpha: float = 0.4
+    cd_beta: float = 0.6
+    cd_max_bundles: float = 15.0
+    cd_h_per_bundle: float = 1.0
+    cd_e_per_bundle: float = 3.0
+    cd_num_tranches: int = 5
+
+    def get_logarithmic_utility(self) -> LogarithmicUtility:
+        """Get LogarithmicUtility object from this config."""
+        return LogarithmicUtility(
+            scale=self.log_scale,
+            shape=self.log_shape,
+            max_quantity=self.log_max_quantity,
+            num_tranches=self.log_num_tranches
+        )
+
+    def get_cobb_douglas_utility(self) -> CobbDouglasUtility:
+        """Get CobbDouglasUtility object from this config."""
+        return CobbDouglasUtility(
+            A=self.cd_A,
+            alpha=self.cd_alpha,
+            beta=self.cd_beta,
+            max_bundles=self.cd_max_bundles,
+            h_per_bundle=self.cd_h_per_bundle,
+            e_per_bundle=self.cd_e_per_bundle,
+            num_tranches=self.cd_num_tranches
+        )
+
+
 @dataclass
 class SimulationConfig:
     """Configuration for the energy system simulation."""
@@ -130,47 +196,69 @@ class SimulationConfig:
     periods: int = 24  # Number of time periods (e.g., hours)
     freq: str = 'h'    # Frequency (hourly)
 
-    # Alpha: Electricity production
-    alpha_capacity: float = 100.0      # Max capacity (kW)
-    alpha_cost: float = 8.0            # Production cost (ct/kWh)
-
-    # Bravo: Electrolyzer parameters
-    bravo_capacity: float = 50.0       # Max output power (kW hydrogen equivalent)
-    bravo_efficiency: float = 0.7      # Conversion efficiency (70%)
-    bravo_cost: float = 1.5            # Transformation cost (ct/kWh input)
-
     # Grid backup (expensive fallback)
     grid_cost: float = 15.0            # Grid electricity cost (ct/kWh)
 
-    # Charlie: Hydrogen consumer with logarithmic utility
+    # Dynamic node lists (new approach)
+    generators: List[GeneratorConfig] = field(default_factory=list)
+    transformers: List[TransformerConfig] = field(default_factory=list)
+    consumers: List[ConsumerConfig] = field(default_factory=list)
+
+    # Legacy fields for backwards compatibility
+    alpha_capacity: float = 100.0      # Max capacity (kW)
+    alpha_cost: float = 8.0            # Production cost (ct/kWh)
+    bravo_capacity: float = 50.0       # Max output power (kW hydrogen equivalent)
+    bravo_efficiency: float = 0.7      # Conversion efficiency (70%)
+    bravo_cost: float = 1.5            # Transformation cost (ct/kWh input)
     charlie_utility: LogarithmicUtility = field(default_factory=lambda: LogarithmicUtility(
-        scale=30.0,       # High willingness to pay for first units
-        shape=5.0,        # Moderate diminishing rate
-        max_quantity=25.0,
-        num_tranches=5
+        scale=30.0, shape=5.0, max_quantity=25.0, num_tranches=5
     ))
-
-    # Delta: Electricity consumer with logarithmic utility
     delta_utility: LogarithmicUtility = field(default_factory=lambda: LogarithmicUtility(
-        scale=25.0,       # Slightly lower max WTP than Charlie
-        shape=10.0,       # Slower diminishing rate (electricity more essential)
-        max_quantity=50.0,
-        num_tranches=5
+        scale=25.0, shape=10.0, max_quantity=50.0, num_tranches=5
     ))
-
-    # Echo: Combined consumer with Cobb-Douglas utility (uses both H2 and electricity)
     echo_utility: CobbDouglasUtility = field(default_factory=lambda: CobbDouglasUtility(
-        A=15.0,           # Scale parameter
-        alpha=0.4,        # Hydrogen share
-        beta=0.6,         # Electricity share
-        max_bundles=15.0,
-        h_per_bundle=1.0, # 1 kg H2 per bundle
-        e_per_bundle=3.0, # 3 kWh electricity per bundle
-        num_tranches=5
+        A=15.0, alpha=0.4, beta=0.6, max_bundles=15.0,
+        h_per_bundle=1.0, e_per_bundle=3.0, num_tranches=5
     ))
-
-    # Whether to include Echo in the simulation
     include_echo: bool = True
+
+    def __post_init__(self):
+        """Convert legacy config to dynamic nodes if no dynamic nodes provided."""
+        if not self.generators and not self.transformers and not self.consumers:
+            self._convert_legacy_config()
+
+    def _convert_legacy_config(self):
+        """Convert legacy hardcoded config to dynamic node lists."""
+        self.generators = [
+            GeneratorConfig(name='Alpha', capacity=self.alpha_capacity, cost=self.alpha_cost, profile_type='solar')
+        ]
+        self.transformers = [
+            TransformerConfig(name='Bravo', capacity=self.bravo_capacity,
+                            efficiency=self.bravo_efficiency, cost=self.bravo_cost)
+        ]
+        self.consumers = [
+            ConsumerConfig(
+                name='Charlie', consumer_type='logarithmic_hydrogen', carrier='hydrogen',
+                log_scale=self.charlie_utility.scale, log_shape=self.charlie_utility.shape,
+                log_max_quantity=self.charlie_utility.max_quantity,
+                log_num_tranches=self.charlie_utility.num_tranches
+            ),
+            ConsumerConfig(
+                name='Delta', consumer_type='logarithmic_electricity', carrier='electricity',
+                log_scale=self.delta_utility.scale, log_shape=self.delta_utility.shape,
+                log_max_quantity=self.delta_utility.max_quantity,
+                log_num_tranches=self.delta_utility.num_tranches
+            ),
+        ]
+        if self.include_echo:
+            self.consumers.append(ConsumerConfig(
+                name='Echo', consumer_type='cobb_douglas', carrier='both',
+                cd_A=self.echo_utility.A, cd_alpha=self.echo_utility.alpha,
+                cd_beta=self.echo_utility.beta, cd_max_bundles=self.echo_utility.max_bundles,
+                cd_h_per_bundle=self.echo_utility.h_per_bundle,
+                cd_e_per_bundle=self.echo_utility.e_per_bundle,
+                cd_num_tranches=self.echo_utility.num_tranches
+            ))
 
 
 class HydrogenSystemSimulation:
@@ -195,13 +283,15 @@ class HydrogenSystemSimulation:
         self.model = None
         self.results = None
         self._components = {}
-        # Generated tranches (populated by build_system)
+        # Generated tranches per consumer (populated by build_system)
+        self._consumer_tranches: Dict[str, List[Tuple[float, float]]] = {}
+        # Legacy tranche references (for backwards compatibility)
         self._charlie_tranches = []
         self._delta_tranches = []
         self._echo_tranches = []
 
     def build_system(self) -> None:
-        """Build the oemof energy system model with price-based economics."""
+        """Build the oemof energy system model with dynamic nodes."""
         # Create date range for simulation
         date_range = pd.date_range(
             start='2024-01-01',
@@ -219,181 +309,189 @@ class HydrogenSystemSimulation:
         bus_electricity = solph.Bus(label='electricity_bus')
         bus_hydrogen = solph.Bus(label='hydrogen_bus')
 
-        # Alpha: Electricity producer with production cost
-        # Variable production based on availability (e.g., solar pattern)
-        alpha_output_profile = self._generate_production_profile()
+        components_to_add = [bus_electricity, bus_hydrogen]
 
-        alpha = solph.components.Source(
-            label='Alpha',
-            outputs={
-                bus_electricity: solph.Flow(
-                    nominal_value=self.config.alpha_capacity,
-                    max=alpha_output_profile,  # max availability per period
-                    variable_costs=self.config.alpha_cost,  # 8 ct/kWh production cost
-                )
-            }
-        )
+        # Build generators dynamically
+        for gen_config in self.config.generators:
+            profile = self._generate_production_profile(gen_config.profile_type)
+            generator = solph.components.Source(
+                label=gen_config.name,
+                outputs={
+                    bus_electricity: solph.Flow(
+                        nominal_value=gen_config.capacity,
+                        max=profile,
+                        variable_costs=gen_config.cost,
+                    )
+                }
+            )
+            components_to_add.append(generator)
+            self._components[gen_config.name] = generator
 
         # Grid: Backup electricity source (more expensive)
         grid = solph.components.Source(
             label='Grid',
             outputs={
                 bus_electricity: solph.Flow(
-                    variable_costs=self.config.grid_cost,  # 15 ct/kWh
+                    variable_costs=self.config.grid_cost,
                 )
             }
         )
+        components_to_add.append(grid)
+        self._components['Grid'] = grid
 
-        # Bravo: Electrolyzer (converts electricity to hydrogen)
-        # Cost is on the input side (electricity consumed)
-        bravo = solph.components.Converter(
-            label='Bravo',
-            inputs={
-                bus_electricity: solph.Flow(
-                    variable_costs=self.config.bravo_cost,  # 1.5 ct/kWh transformation cost
-                )
-            },
-            outputs={
-                bus_hydrogen: solph.Flow(
-                    nominal_value=self.config.bravo_capacity
-                )
-            },
-            conversion_factors={
-                bus_hydrogen: self.config.bravo_efficiency  # 70% efficiency
-            }
-        )
+        # Build transformers dynamically
+        for trans_config in self.config.transformers:
+            input_bus = bus_electricity if trans_config.input_carrier == 'electricity' else bus_hydrogen
+            output_bus = bus_hydrogen if trans_config.output_carrier == 'hydrogen' else bus_electricity
 
-        # Charlie: Hydrogen consumer with logarithmic utility
-        # Generate tranches from utility function
-        charlie_tranches = self.config.charlie_utility.generate_tranches()
-        charlie_sinks = []
-        for i, (qty, wtp) in enumerate(charlie_tranches):
-            sink = solph.components.Sink(
-                label=f'Charlie_T{i+1}',
+            transformer = solph.components.Converter(
+                label=trans_config.name,
                 inputs={
-                    bus_hydrogen: solph.Flow(
-                        nominal_value=qty,
-                        variable_costs=-wtp,  # Negative = utility/benefit
+                    input_bus: solph.Flow(
+                        variable_costs=trans_config.cost,
                     )
+                },
+                outputs={
+                    output_bus: solph.Flow(
+                        nominal_value=trans_config.capacity
+                    )
+                },
+                conversion_factors={
+                    output_bus: trans_config.efficiency
                 }
             )
-            charlie_sinks.append(sink)
+            components_to_add.append(transformer)
+            self._components[trans_config.name] = transformer
 
-        # Delta: Electricity consumer with logarithmic utility
-        delta_tranches = self.config.delta_utility.generate_tranches()
-        delta_sinks = []
-        for i, (qty, wtp) in enumerate(delta_tranches):
-            sink = solph.components.Sink(
-                label=f'Delta_T{i+1}',
-                inputs={
-                    bus_electricity: solph.Flow(
-                        nominal_value=qty,
-                        variable_costs=-wtp,  # Negative = utility/benefit
+        # Build consumers dynamically
+        satisfaction_buses = {}  # For Cobb-Douglas consumers
+
+        for cons_config in self.config.consumers:
+            if cons_config.consumer_type.startswith('logarithmic'):
+                # Logarithmic utility consumer (single carrier)
+                utility = cons_config.get_logarithmic_utility()
+                bus = bus_hydrogen if cons_config.carrier == 'hydrogen' else bus_electricity
+                tranches = utility.generate_tranches()
+
+                self._consumer_tranches[cons_config.name] = tranches
+                consumer_sinks = []
+
+                for i, (qty, wtp) in enumerate(tranches):
+                    sink = solph.components.Sink(
+                        label=f'{cons_config.name}_T{i+1}',
+                        inputs={
+                            bus: solph.Flow(
+                                nominal_value=qty,
+                                variable_costs=-wtp,  # Negative = utility/benefit
+                            )
+                        }
                     )
-                }
-            )
-            delta_sinks.append(sink)
+                    consumer_sinks.append(sink)
+                    components_to_add.append(sink)
 
-        # Echo: Combined consumer with Cobb-Douglas utility
-        # Consumes fixed-ratio bundles of hydrogen + electricity
-        echo_sinks = []
-        echo_tranches = []
-        if self.config.include_echo:
-            echo_tranches = self.config.echo_utility.generate_tranches()
-            for i, (qty, wtp) in enumerate(echo_tranches):
-                # Each Echo tranche is a "bundle sink" that needs both H2 and electricity
-                # We model this as a Converter that consumes both inputs
-                # The "product" is abstract utility (no physical output needed)
-                h_per_bundle = self.config.echo_utility.h_per_bundle
-                e_per_bundle = self.config.echo_utility.e_per_bundle
+                self._components[f'{cons_config.name}_sinks'] = consumer_sinks
 
-                # Use a dummy bus for Echo's "satisfaction" output
-                if i == 0:
-                    bus_echo_satisfaction = solph.Bus(label='echo_satisfaction_bus')
+                # Legacy compatibility
+                if cons_config.name == 'Charlie':
+                    self._charlie_tranches = tranches
+                elif cons_config.name == 'Delta':
+                    self._delta_tranches = tranches
 
-                # Echo bundle converter: takes H2 and electricity, outputs "satisfaction"
-                echo_converter = solph.components.Converter(
-                    label=f'Echo_T{i+1}',
-                    inputs={
-                        bus_hydrogen: solph.Flow(),
-                        bus_electricity: solph.Flow(),
-                    },
-                    outputs={
-                        bus_echo_satisfaction: solph.Flow(
-                            nominal_value=qty,
-                            variable_costs=-wtp,  # Negative = utility/benefit
-                        )
-                    },
-                    conversion_factors={
-                        bus_hydrogen: 1 / h_per_bundle,      # H2 needed per bundle
-                        bus_electricity: 1 / e_per_bundle,   # Electricity needed per bundle
-                        bus_echo_satisfaction: 1.0,          # Output: 1 satisfaction unit per bundle
-                    }
+            elif cons_config.consumer_type == 'cobb_douglas':
+                # Cobb-Douglas utility consumer (dual carrier)
+                utility = cons_config.get_cobb_douglas_utility()
+                tranches = utility.generate_tranches()
+
+                self._consumer_tranches[cons_config.name] = tranches
+
+                # Create satisfaction bus for this consumer
+                bus_satisfaction = solph.Bus(label=f'{cons_config.name}_satisfaction_bus')
+                satisfaction_buses[cons_config.name] = bus_satisfaction
+                components_to_add.append(bus_satisfaction)
+
+                consumer_converters = []
+                for i, (qty, wtp) in enumerate(tranches):
+                    h_per_bundle = cons_config.cd_h_per_bundle
+                    e_per_bundle = cons_config.cd_e_per_bundle
+
+                    converter = solph.components.Converter(
+                        label=f'{cons_config.name}_T{i+1}',
+                        inputs={
+                            bus_hydrogen: solph.Flow(),
+                            bus_electricity: solph.Flow(),
+                        },
+                        outputs={
+                            bus_satisfaction: solph.Flow(
+                                nominal_value=qty,
+                                variable_costs=-wtp,
+                            )
+                        },
+                        conversion_factors={
+                            bus_hydrogen: 1 / h_per_bundle,
+                            bus_electricity: 1 / e_per_bundle,
+                            bus_satisfaction: 1.0,
+                        }
+                    )
+                    consumer_converters.append(converter)
+                    components_to_add.append(converter)
+
+                self._components[f'{cons_config.name}_sinks'] = consumer_converters
+
+                # Satisfaction sink (to complete the bus)
+                satisfaction_sink = solph.components.Sink(
+                    label=f'{cons_config.name}_Satisfaction',
+                    inputs={bus_satisfaction: solph.Flow()}
                 )
-                echo_sinks.append(echo_converter)
+                components_to_add.append(satisfaction_sink)
+
+                # Legacy compatibility
+                if cons_config.name == 'Echo':
+                    self._echo_tranches = tranches
 
         # Excess sinks (curtailment) - no cost, just allows excess
         excess_electricity = solph.components.Sink(
             label='Excess_Electricity',
             inputs={bus_electricity: solph.Flow()}
         )
-
         excess_hydrogen = solph.components.Sink(
             label='Excess_Hydrogen',
             inputs={bus_hydrogen: solph.Flow()}
         )
+        components_to_add.extend([excess_electricity, excess_hydrogen])
 
-        # Echo satisfaction sink (needed to complete the bus)
-        echo_satisfaction_sink = None
-        if self.config.include_echo:
-            echo_satisfaction_sink = solph.components.Sink(
-                label='Echo_Satisfaction',
-                inputs={bus_echo_satisfaction: solph.Flow()}
-            )
-
-        # Store components and tranches for reference
-        self._components = {
-            'bus_electricity': bus_electricity,
-            'bus_hydrogen': bus_hydrogen,
-            'Alpha': alpha,
-            'Grid': grid,
-            'Bravo': bravo,
-            'Charlie_sinks': charlie_sinks,
-            'Delta_sinks': delta_sinks,
-            'Echo_sinks': echo_sinks,
-            'Excess_Electricity': excess_electricity,
-            'Excess_Hydrogen': excess_hydrogen,
-        }
-        self._charlie_tranches = charlie_tranches
-        self._delta_tranches = delta_tranches
-        self._echo_tranches = echo_tranches
-
-        # Add all components to energy system
-        components_to_add = [
-            bus_electricity, bus_hydrogen,
-            alpha, grid, bravo,
-            excess_electricity, excess_hydrogen
-        ]
-        components_to_add.extend(charlie_sinks)
-        components_to_add.extend(delta_sinks)
-
-        if self.config.include_echo:
-            components_to_add.append(bus_echo_satisfaction)
-            components_to_add.extend(echo_sinks)
-            components_to_add.append(echo_satisfaction_sink)
+        # Store bus references
+        self._components['bus_electricity'] = bus_electricity
+        self._components['bus_hydrogen'] = bus_hydrogen
+        self._components['Excess_Electricity'] = excess_electricity
+        self._components['Excess_Hydrogen'] = excess_hydrogen
 
         self.energy_system.add(*components_to_add)
 
-        print("Energy system built successfully (logarithmic + Cobb-Douglas utilities).")
+        print(f"Energy system built: {len(self.config.generators)} generators, "
+              f"{len(self.config.transformers)} transformers, {len(self.config.consumers)} consumers.")
 
-    def _generate_production_profile(self) -> list:
-        """Generate electricity production availability profile (e.g., solar pattern)."""
+    def _generate_production_profile(self, profile_type: str = 'solar') -> list:
+        """Generate electricity production availability profile based on type."""
         import math
         profile = []
+
         for t in range(self.config.periods):
-            # Peak at midday (t=12), zero at night
-            value = max(0, math.sin(math.pi * t / self.config.periods))
+            if profile_type == 'solar':
+                # Peak at midday (t=12), zero at night
+                value = max(0, math.sin(math.pi * t / self.config.periods))
+            elif profile_type == 'wind':
+                # More variable pattern
+                value = 0.3 + 0.5 * math.sin(2 * math.pi * t / self.config.periods) + \
+                       0.2 * math.sin(4 * math.pi * t / self.config.periods)
+                value = max(0.1, min(1.0, value))
+            elif profile_type == 'flat':
+                # Constant availability
+                value = 1.0
+            else:
+                # Default to solar
+                value = max(0, math.sin(math.pi * t / self.config.periods))
             profile.append(value)
+
         return profile
 
     def solve(self) -> bool:
@@ -438,64 +536,43 @@ class HydrogenSystemSimulation:
 
         flows = {}
 
-        # Alpha production
-        alpha_flow = views.node(self.results, 'Alpha')
-        if alpha_flow is not None:
-            flows['Alpha_production'] = alpha_flow['sequences']
+        # Generator production (all generators)
+        for gen_config in self.config.generators:
+            gen_flow = views.node(self.results, gen_config.name)
+            if gen_flow is not None:
+                flows[f'{gen_config.name}_production'] = gen_flow['sequences']
 
         # Grid usage
         grid_flow = views.node(self.results, 'Grid')
         if grid_flow is not None:
             flows['Grid_supply'] = grid_flow['sequences']
 
-        # Bravo conversion
-        bravo_flow = views.node(self.results, 'Bravo')
-        if bravo_flow is not None:
-            flows['Bravo_conversion'] = bravo_flow['sequences']
+        # Transformer conversion (all transformers)
+        for trans_config in self.config.transformers:
+            trans_flow = views.node(self.results, trans_config.name)
+            if trans_flow is not None:
+                flows[f'{trans_config.name}_conversion'] = trans_flow['sequences']
 
-        # Charlie consumption (sum all tranches)
-        charlie_total = None
-        for i in range(len(self._charlie_tranches)):
-            sink_flow = views.node(self.results, f'Charlie_T{i+1}')
-            if sink_flow is not None and 'sequences' in sink_flow:
-                if charlie_total is None:
-                    charlie_total = sink_flow['sequences'].copy()
-                else:
-                    charlie_total += sink_flow['sequences']
-        if charlie_total is not None:
-            flows['Charlie_consumption'] = charlie_total
+        # Consumer consumption (all consumers)
+        for cons_config in self.config.consumers:
+            tranches = self._consumer_tranches.get(cons_config.name, [])
+            cons_total = None
 
-        # Delta consumption (sum all tranches)
-        delta_total = None
-        for i in range(len(self._delta_tranches)):
-            sink_flow = views.node(self.results, f'Delta_T{i+1}')
-            if sink_flow is not None and 'sequences' in sink_flow:
-                if delta_total is None:
-                    delta_total = sink_flow['sequences'].copy()
-                else:
-                    delta_total += sink_flow['sequences']
-        if delta_total is not None:
-            flows['Delta_consumption'] = delta_total
-
-        # Echo consumption (sum all tranches - bundles consumed)
-        if self.config.include_echo and self._echo_tranches:
-            echo_total = None
-            echo_h2_total = None
-            echo_elec_total = None
-            for i in range(len(self._echo_tranches)):
-                echo_flow = views.node(self.results, f'Echo_T{i+1}')
-                if echo_flow is not None and 'sequences' in echo_flow:
-                    if echo_total is None:
-                        echo_total = echo_flow['sequences'].copy()
+            for i in range(len(tranches)):
+                sink_flow = views.node(self.results, f'{cons_config.name}_T{i+1}')
+                if sink_flow is not None and 'sequences' in sink_flow:
+                    if cons_total is None:
+                        cons_total = sink_flow['sequences'].copy()
                     else:
-                        echo_total += echo_flow['sequences']
-            if echo_total is not None:
-                flows['Echo_consumption'] = echo_total
-                # Also calculate H2 and electricity used by Echo
-                h_per_bundle = self.config.echo_utility.h_per_bundle
-                e_per_bundle = self.config.echo_utility.e_per_bundle
-                flows['Echo_hydrogen'] = echo_total * h_per_bundle
-                flows['Echo_electricity'] = echo_total * e_per_bundle
+                        cons_total += sink_flow['sequences']
+
+            if cons_total is not None:
+                flows[f'{cons_config.name}_consumption'] = cons_total
+
+                # For Cobb-Douglas consumers, also calculate H2 and electricity used
+                if cons_config.consumer_type == 'cobb_douglas':
+                    flows[f'{cons_config.name}_hydrogen'] = cons_total * cons_config.cd_h_per_bundle
+                    flows[f'{cons_config.name}_electricity'] = cons_total * cons_config.cd_e_per_bundle
 
         return flows
 
@@ -507,90 +584,116 @@ class HydrogenSystemSimulation:
         summary = {}
 
         try:
-            # Production totals
-            alpha_data = views.node(self.results, 'Alpha')
-            if alpha_data is not None and 'sequences' in alpha_data:
-                alpha_total = float(alpha_data['sequences'].sum().sum())
-                summary['total_alpha_production'] = alpha_total
-                summary['alpha_cost_total'] = alpha_total * self.config.alpha_cost
+            # Generator production totals
+            total_production_cost = 0.0
+            total_production = 0.0
+            for gen_config in self.config.generators:
+                gen_data = views.node(self.results, gen_config.name)
+                if gen_data is not None and 'sequences' in gen_data:
+                    gen_total = float(gen_data['sequences'].sum().sum())
+                    summary[f'{gen_config.name}_production'] = gen_total
+                    summary[f'{gen_config.name}_cost'] = gen_total * gen_config.cost
+                    total_production += gen_total
+                    total_production_cost += gen_total * gen_config.cost
 
+            # Legacy compatibility
+            if 'Alpha_production' in summary:
+                summary['total_alpha_production'] = summary['Alpha_production']
+                summary['alpha_cost_total'] = summary['Alpha_cost']
+
+            summary['total_production'] = total_production
+
+            # Grid supply
             grid_data = views.node(self.results, 'Grid')
             if grid_data is not None and 'sequences' in grid_data:
                 grid_total = float(grid_data['sequences'].sum().sum())
                 summary['total_grid_supply'] = grid_total
                 summary['grid_cost_total'] = grid_total * self.config.grid_cost
+                total_production_cost += grid_total * self.config.grid_cost
 
-            # Bravo conversion
-            bravo_data = views.node(self.results, 'Bravo')
-            if bravo_data is not None and 'sequences' in bravo_data:
-                # Input electricity to Bravo
-                bravo_input = float(bravo_data['sequences'].sum().sum()) / 2  # Approximate
-                summary['bravo_conversion_cost'] = bravo_input * self.config.bravo_cost
+            # Transformer costs
+            total_transformer_cost = 0.0
+            for trans_config in self.config.transformers:
+                trans_data = views.node(self.results, trans_config.name)
+                if trans_data is not None and 'sequences' in trans_data:
+                    trans_input = float(trans_data['sequences'].sum().sum()) / 2
+                    trans_cost = trans_input * trans_config.cost
+                    summary[f'{trans_config.name}_cost'] = trans_cost
+                    total_transformer_cost += trans_cost
 
-            # Charlie consumption and utility (using generated tranches)
-            charlie_utility = 0.0
-            charlie_total = 0.0
-            for i, (qty, wtp) in enumerate(self._charlie_tranches):
-                sink_data = views.node(self.results, f'Charlie_T{i+1}')
-                if sink_data is not None and 'sequences' in sink_data:
-                    consumption = float(sink_data['sequences'].sum().sum())
-                    charlie_total += consumption
-                    charlie_utility += consumption * wtp
-            summary['charlie_hydrogen_consumed'] = charlie_total
-            summary['charlie_utility_total'] = charlie_utility
+            # Legacy compatibility
+            if self.config.transformers:
+                summary['bravo_conversion_cost'] = total_transformer_cost
 
-            # Delta consumption and utility (using generated tranches)
-            delta_utility = 0.0
-            delta_total = 0.0
-            for i, (qty, wtp) in enumerate(self._delta_tranches):
-                sink_data = views.node(self.results, f'Delta_T{i+1}')
-                if sink_data is not None and 'sequences' in sink_data:
-                    consumption = float(sink_data['sequences'].sum().sum())
-                    delta_total += consumption
-                    delta_utility += consumption * wtp
-            summary['delta_electricity_consumed'] = delta_total
-            summary['delta_utility_total'] = delta_utility
+            # Consumer consumption and utility (all consumers)
+            total_utility = 0.0
+            total_h2_consumed = 0.0
+            total_elec_consumed = 0.0
 
-            # Echo consumption and utility (Cobb-Douglas)
-            echo_utility = 0.0
-            echo_bundles = 0.0
-            echo_h2 = 0.0
-            echo_elec = 0.0
-            if self.config.include_echo and self._echo_tranches:
-                for i, (qty, wtp) in enumerate(self._echo_tranches):
-                    echo_data = views.node(self.results, f'Echo_T{i+1}')
-                    if echo_data is not None and 'sequences' in echo_data:
-                        bundles = float(echo_data['sequences'].sum().sum())
-                        echo_bundles += bundles
-                        echo_utility += bundles * wtp
-                echo_h2 = echo_bundles * self.config.echo_utility.h_per_bundle
-                echo_elec = echo_bundles * self.config.echo_utility.e_per_bundle
-            summary['echo_bundles_consumed'] = echo_bundles
-            summary['echo_hydrogen_consumed'] = echo_h2
-            summary['echo_electricity_consumed'] = echo_elec
-            summary['echo_utility_total'] = echo_utility
+            for cons_config in self.config.consumers:
+                tranches = self._consumer_tranches.get(cons_config.name, [])
+                cons_utility = 0.0
+                cons_total = 0.0
 
-            # Total consumption
-            summary['total_hydrogen_consumed'] = charlie_total + echo_h2
-            summary['total_electricity_consumed'] = delta_total + echo_elec
+                for i, (qty, wtp) in enumerate(tranches):
+                    sink_data = views.node(self.results, f'{cons_config.name}_T{i+1}')
+                    if sink_data is not None and 'sequences' in sink_data:
+                        consumption = float(sink_data['sequences'].sum().sum())
+                        cons_total += consumption
+                        cons_utility += consumption * wtp
+
+                summary[f'{cons_config.name}_consumed'] = cons_total
+                summary[f'{cons_config.name}_utility'] = cons_utility
+                total_utility += cons_utility
+
+                # Track carrier consumption
+                if cons_config.carrier == 'hydrogen':
+                    total_h2_consumed += cons_total
+                    # Legacy compatibility
+                    if cons_config.name == 'Charlie':
+                        summary['charlie_hydrogen_consumed'] = cons_total
+                        summary['charlie_utility_total'] = cons_utility
+                elif cons_config.carrier == 'electricity':
+                    total_elec_consumed += cons_total
+                    # Legacy compatibility
+                    if cons_config.name == 'Delta':
+                        summary['delta_electricity_consumed'] = cons_total
+                        summary['delta_utility_total'] = cons_utility
+                elif cons_config.carrier == 'both':
+                    # Cobb-Douglas: bundles consumed
+                    h2_used = cons_total * cons_config.cd_h_per_bundle
+                    elec_used = cons_total * cons_config.cd_e_per_bundle
+                    total_h2_consumed += h2_used
+                    total_elec_consumed += elec_used
+                    summary[f'{cons_config.name}_hydrogen'] = h2_used
+                    summary[f'{cons_config.name}_electricity'] = elec_used
+                    # Legacy compatibility
+                    if cons_config.name == 'Echo':
+                        summary['echo_bundles_consumed'] = cons_total
+                        summary['echo_hydrogen_consumed'] = h2_used
+                        summary['echo_electricity_consumed'] = elec_used
+                        summary['echo_utility_total'] = cons_utility
+
+            summary['total_hydrogen_consumed'] = total_h2_consumed
+            summary['total_electricity_consumed'] = total_elec_consumed
 
             # Total welfare = utility - costs
-            total_costs = summary.get('alpha_cost_total', 0) + \
-                         summary.get('grid_cost_total', 0) + \
-                         summary.get('bravo_conversion_cost', 0)
-            total_utility = summary.get('charlie_utility_total', 0) + \
-                           summary.get('delta_utility_total', 0) + \
-                           summary.get('echo_utility_total', 0)
+            total_costs = total_production_cost + total_transformer_cost
             summary['total_costs'] = total_costs
             summary['total_utility'] = total_utility
             summary['total_welfare'] = total_utility - total_costs
 
         except Exception as e:
             print(f"Warning: Could not extract all summary data: {e}")
+            import traceback
+            traceback.print_exc()
 
-        summary['electrolyzer_efficiency'] = self.config.bravo_efficiency
-        summary['alpha_cost_per_kwh'] = self.config.alpha_cost
-        summary['bravo_cost_per_kwh'] = self.config.bravo_cost
+        # Legacy compatibility fields
+        if self.config.transformers:
+            summary['electrolyzer_efficiency'] = self.config.transformers[0].efficiency
+            summary['bravo_cost_per_kwh'] = self.config.transformers[0].cost
+        if self.config.generators:
+            summary['alpha_cost_per_kwh'] = self.config.generators[0].cost
 
         return summary
 
@@ -599,9 +702,12 @@ class HydrogenSystemSimulation:
         if self.results is None:
             raise RuntimeError("No results available. Call solve() first.")
 
+        # Get production costs from first generator (for legacy compatibility)
+        gen_cost = self.config.generators[0].cost if self.config.generators else 8.0
+
         analysis = {
             'electricity': {
-                'production_cost': self.config.alpha_cost,
+                'production_cost': gen_cost,
                 'grid_cost': self.config.grid_cost,
                 'consumer_tranches': []
             },
@@ -611,62 +717,72 @@ class HydrogenSystemSimulation:
             },
             'echo': {
                 'bundles': [],
-                'h_per_bundle': self.config.echo_utility.h_per_bundle if self.config.include_echo else 0,
-                'e_per_bundle': self.config.echo_utility.e_per_bundle if self.config.include_echo else 0,
-            }
+                'h_per_bundle': 0,
+                'e_per_bundle': 0,
+            },
+            'consumers': {}  # New: per-consumer tranche data
         }
 
-        # Delta tranches (electricity - logarithmic utility)
-        for i, (qty, wtp) in enumerate(self._delta_tranches):
-            sink_data = views.node(self.results, f'Delta_T{i+1}')
-            if sink_data is not None and 'sequences' in sink_data:
-                consumption = float(sink_data['sequences'].sum().sum())
-                analysis['electricity']['consumer_tranches'].append({
-                    'tranche': i + 1,
-                    'max_quantity': qty * self.config.periods,
-                    'consumed': consumption,
-                    'willingness_to_pay': wtp,
-                    'utilization': consumption / (qty * self.config.periods) * 100
-                })
+        # Process all consumers dynamically
+        for cons_config in self.config.consumers:
+            tranches = self._consumer_tranches.get(cons_config.name, [])
+            consumer_data = {
+                'consumer_type': cons_config.consumer_type,
+                'carrier': cons_config.carrier,
+                'tranches': []
+            }
 
-        # Charlie tranches (hydrogen - logarithmic utility)
-        for i, (qty, wtp) in enumerate(self._charlie_tranches):
-            sink_data = views.node(self.results, f'Charlie_T{i+1}')
-            if sink_data is not None and 'sequences' in sink_data:
-                consumption = float(sink_data['sequences'].sum().sum())
-                analysis['hydrogen']['consumer_tranches'].append({
-                    'tranche': i + 1,
-                    'max_quantity': qty * self.config.periods,
-                    'consumed': consumption,
-                    'willingness_to_pay': wtp,
-                    'utilization': consumption / (qty * self.config.periods) * 100
-                })
-
-        # Echo tranches (Cobb-Douglas bundles)
-        if self.config.include_echo and self._echo_tranches:
-            for i, (qty, wtp) in enumerate(self._echo_tranches):
-                echo_data = views.node(self.results, f'Echo_T{i+1}')
-                if echo_data is not None and 'sequences' in echo_data:
-                    bundles = float(echo_data['sequences'].sum().sum())
-                    analysis['echo']['bundles'].append({
+            for i, (qty, wtp) in enumerate(tranches):
+                sink_data = views.node(self.results, f'{cons_config.name}_T{i+1}')
+                if sink_data is not None and 'sequences' in sink_data:
+                    consumption = float(sink_data['sequences'].sum().sum())
+                    tranche_data = {
                         'tranche': i + 1,
-                        'max_bundles': qty * self.config.periods,
-                        'consumed': bundles,
+                        'max_quantity': qty * self.config.periods,
+                        'consumed': consumption,
                         'willingness_to_pay': wtp,
-                        'utilization': bundles / (qty * self.config.periods) * 100 if qty > 0 else 0
-                    })
+                        'utilization': consumption / (qty * self.config.periods) * 100 if qty > 0 else 0
+                    }
+                    consumer_data['tranches'].append(tranche_data)
+
+                    # Also add to legacy structure
+                    if cons_config.carrier == 'electricity':
+                        analysis['electricity']['consumer_tranches'].append(tranche_data)
+                    elif cons_config.carrier == 'hydrogen':
+                        analysis['hydrogen']['consumer_tranches'].append(tranche_data)
+                    elif cons_config.carrier == 'both':
+                        # Cobb-Douglas bundle data
+                        bundle_data = {
+                            'tranche': i + 1,
+                            'max_bundles': qty * self.config.periods,
+                            'consumed': consumption,
+                            'willingness_to_pay': wtp,
+                            'utilization': consumption / (qty * self.config.periods) * 100 if qty > 0 else 0
+                        }
+                        analysis['echo']['bundles'].append(bundle_data)
+                        analysis['echo']['h_per_bundle'] = cons_config.cd_h_per_bundle
+                        analysis['echo']['e_per_bundle'] = cons_config.cd_e_per_bundle
+
+            analysis['consumers'][cons_config.name] = consumer_data
 
         return analysis
 
     def _calculate_hydrogen_marginal_cost(self) -> float:
         """Calculate the marginal cost of hydrogen production."""
-        # Cost = (electricity cost / efficiency) + transformation cost / efficiency
-        elec_cost = self.config.alpha_cost
-        transform_cost = self.config.bravo_cost
-        efficiency = self.config.bravo_efficiency
+        # Get costs from first generator and transformer
+        if self.config.generators:
+            elec_cost = self.config.generators[0].cost
+        else:
+            elec_cost = 8.0
+
+        if self.config.transformers:
+            transform_cost = self.config.transformers[0].cost
+            efficiency = self.config.transformers[0].efficiency
+        else:
+            transform_cost = 1.5
+            efficiency = 0.7
 
         # Total cost per kWh of hydrogen = electricity needed * elec_cost + transform_cost
-        # 1 kWh hydrogen requires 1/efficiency kWh electricity
         return (elec_cost + transform_cost) / efficiency
 
     def export_results_to_json(self, filepath: str) -> None:

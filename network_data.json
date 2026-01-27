@@ -15,8 +15,8 @@
       "node_type": "converter",
       "carrier": "both",
       "position": [
-        0.6112068183878865,
-        -2.088,
+        -2,
+        0,
         0
       ]
     },
@@ -39,6 +39,16 @@
         0,
         0
       ]
+    },
+    {
+      "name": "Echo",
+      "node_type": "consumer",
+      "carrier": "both",
+      "position": [
+        0,
+        -2,
+        0
+      ]
     }
   ],
   "edges": [
@@ -48,13 +58,23 @@
       "carrier": "electricity"
     },
     {
+      "source": "Bravo",
+      "target": "Charlie",
+      "carrier": "hydrogen"
+    },
+    {
       "source": "Alpha",
       "target": "Delta",
       "carrier": "electricity"
     },
     {
+      "source": "Alpha",
+      "target": "Echo",
+      "carrier": "electricity"
+    },
+    {
       "source": "Bravo",
-      "target": "Charlie",
+      "target": "Echo",
       "carrier": "hydrogen"
     }
   ]

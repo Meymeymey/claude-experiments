@@ -1,0 +1,77 @@
+{
+  "generators": [
+    {
+      "name": "Alpha",
+      "capacity": 100.0,
+      "cost": 8.0,
+      "profile_type": "solar",
+      "position": [
+        0,
+        2,
+        0
+      ]
+    }
+  ],
+  "transformers": [
+    {
+      "name": "Bravo",
+      "capacity": 50.0,
+      "efficiency": 0.7,
+      "cost": 1.5,
+      "input_carrier": "electricity",
+      "output_carrier": "hydrogen",
+      "position": [
+        -2,
+        0,
+        0
+      ]
+    }
+  ],
+  "consumers": [
+    {
+      "name": "Charlie",
+      "consumer_type": "logarithmic_hydrogen",
+      "carrier": "hydrogen",
+      "log_scale": 30.0,
+      "log_shape": 5.0,
+      "log_max_quantity": 25.0,
+      "log_num_tranches": 5,
+      "position": [
+        -2,
+        -2,
+        0
+      ]
+    },
+    {
+      "name": "Delta",
+      "consumer_type": "logarithmic_electricity",
+      "carrier": "electricity",
+      "log_scale": 25.0,
+      "log_shape": 10.0,
+      "log_max_quantity": 50.0,
+      "log_num_tranches": 5,
+      "position": [
+        2,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Echo",
+      "consumer_type": "cobb_douglas",
+      "carrier": "both",
+      "cd_A": 15.0,
+      "cd_alpha": 0.4,
+      "cd_beta": 0.6,
+      "cd_max_bundles": 15.0,
+      "cd_h_per_bundle": 1.0,
+      "cd_e_per_bundle": 3.0,
+      "cd_num_tranches": 5,
+      "position": [
+        0,
+        -2,
+        0
+      ]
+    }
+  ]
+}

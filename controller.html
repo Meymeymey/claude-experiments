@@ -336,6 +336,140 @@
         .card-wide {
             grid-column: 1 / -1;
         }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h3 {
+            color: #4ecca3;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        /* Node item in list */
+        .node-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .node-item .node-name {
+            font-weight: bold;
+            color: #4ecca3;
+            min-width: 80px;
+        }
+
+        .node-item .node-info {
+            flex: 1;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-edit {
+            background: rgba(78, 204, 163, 0.3);
+            color: #4ecca3;
+        }
+
+        .btn-edit:hover {
+            background: rgba(78, 204, 163, 0.5);
+        }
+
+        .btn-delete {
+            background: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+
+        .btn-delete:hover {
+            background: rgba(231, 76, 60, 0.5);
+        }
+
+        /* Node management grid */
+        .node-columns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .node-column h3 {
+            color: #888;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-column h3 .count {
+            background: rgba(78, 204, 163, 0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            color: #4ecca3;
+        }
+
+        .node-list {
+            min-height: 100px;
+            margin-bottom: 10px;
+        }
+
+        .node-list:empty::after {
+            content: 'No nodes yet';
+            color: #555;
+            font-size: 0.85rem;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -629,6 +763,164 @@
                     <strong>In Blender:</strong> <code style="color: #4ecca3;">sync_from_blender()</code>
                 </div>
             </div>
+
+            <!-- Node Management Card -->
+            <div class="card card-wide">
+                <h2><span class="icon">⚙</span> Node Management</h2>
+
+                <div class="node-columns">
+                    <!-- Generators Column -->
+                    <div class="node-column">
+                        <h3>Generators <span class="count" id="gen-count">0</span></h3>
+                        <div class="node-list" id="generators-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('generator')" style="width:100%;">
+                            + Add Generator
+                        </button>
+                    </div>
+
+                    <!-- Transformers Column -->
+                    <div class="node-column">
+                        <h3>Transformers <span class="count" id="trans-count">0</span></h3>
+                        <div class="node-list" id="transformers-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('transformer')" style="width:100%;">
+                            + Add Transformer
+                        </button>
+                    </div>
+
+                    <!-- Consumers Column -->
+                    <div class="node-column">
+                        <h3>Consumers <span class="count" id="cons-count">0</span></h3>
+                        <div class="node-list" id="consumers-list"></div>
+                        <button class="btn btn-secondary" onclick="openAddNodeModal('consumer')" style="width:100%;">
+                            + Add Consumer
+                        </button>
+                    </div>
+                </div>
+
+                <div id="node-status" style="margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- Add/Edit Node Modal -->
+        <div id="node-modal" class="modal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeNodeModal()">&times;</button>
+                <h3 id="modal-title">Add Node</h3>
+
+                <div class="param-group">
+                    <label>Name</label>
+                    <input type="text" id="node-name" placeholder="Enter node name">
+                </div>
+
+                <!-- Generator fields -->
+                <div id="generator-fields" style="display:none;">
+                    <div class="param-row">
+                        <div class="param-group">
+                            <label>Capacity (kW)</label>
+                            <input type="number" id="gen-capacity" value="100" min="0" step="10">
+                        </div>
+                        <div class="param-group">
+                            <label>Cost (ct/kWh)</label>
+                            <input type="number" id="gen-cost" value="8" min="0" step="0.5">
+                        </div>
+                    </div>
+                    <div class="param-group">
+                        <label>Profile Type</label>
+                        <select id="gen-profile">
+                            <option value="solar">Solar (peaks midday)</option>
+                            <option value="wind">Wind (variable)</option>
+                            <option value="flat">Flat (constant)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Transformer fields -->
+                <div id="transformer-fields" style="display:none;">
+                    <div class="param-row-3">
+                        <div class="param-group">
+                            <label>Capacity (kW)</label>
+                            <input type="number" id="trans-capacity" value="50" min="0" step="10">
+                        </div>
+                        <div class="param-group">
+                            <label>Efficiency (%)</label>
+                            <input type="number" id="trans-efficiency" value="70" min="0" max="100" step="5">
+                        </div>
+                        <div class="param-group">
+                            <label>Cost (ct/kWh)</label>
+                            <input type="number" id="trans-cost" value="1.5" min="0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consumer fields -->
+                <div id="consumer-fields" style="display:none;">
+                    <div class="param-group">
+                        <label>Consumer Type</label>
+                        <select id="cons-type" onchange="toggleConsumerParams()">
+                            <option value="logarithmic_electricity">Electricity (Logarithmic)</option>
+                            <option value="logarithmic_hydrogen">Hydrogen (Logarithmic)</option>
+                            <option value="cobb_douglas">Combined (Cobb-Douglas)</option>
+                        </select>
+                    </div>
+
+                    <!-- Logarithmic params -->
+                    <div id="log-params">
+                        <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(x) = scale × ln(1 + x/shape)</p>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>Scale (a)</label>
+                                <input type="number" id="cons-log-scale" value="30" min="1" step="1">
+                            </div>
+                            <div class="param-group">
+                                <label>Shape (b)</label>
+                                <input type="number" id="cons-log-shape" value="5" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Max Qty</label>
+                                <input type="number" id="cons-log-max" value="25" min="1" step="5">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cobb-Douglas params -->
+                    <div id="cd-params" style="display:none;">
+                        <p style="color:#666;font-size:0.75rem;margin-bottom:8px;">U(h,e) = A × h<sup>α</sup> × e<sup>β</sup></p>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>Scale (A)</label>
+                                <input type="number" id="cons-cd-A" value="15" min="0.1" step="1">
+                            </div>
+                            <div class="param-group">
+                                <label>H2 exp (α)</label>
+                                <input type="number" id="cons-cd-alpha" value="0.4" min="0.01" max="1" step="0.05">
+                            </div>
+                            <div class="param-group">
+                                <label>Elec exp (β)</label>
+                                <input type="number" id="cons-cd-beta" value="0.6" min="0.01" max="1" step="0.05">
+                            </div>
+                        </div>
+                        <div class="param-row-3">
+                            <div class="param-group">
+                                <label>H2/bundle (kg)</label>
+                                <input type="number" id="cons-cd-h" value="1" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Elec/bundle (kWh)</label>
+                                <input type="number" id="cons-cd-e" value="3" min="0.1" step="0.5">
+                            </div>
+                            <div class="param-group">
+                                <label>Max bundles</label>
+                                <input type="number" id="cons-cd-max" value="15" min="1" step="1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group" style="margin-top:20px;">
+                    <button class="btn btn-secondary" onclick="closeNodeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveNode()">Save</button>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
@@ -639,29 +931,13 @@
     <script>
         const API_BASE = '';
 
-        // Node positions (normalized 0-1)
-        let nodes = {
-            'Alpha': { x: 0.5, y: 0.1, type: 'producer' },
-            'Bravo': { x: 0.2, y: 0.5, type: 'converter' },
-            'Charlie': { x: 0.2, y: 0.85, type: 'consumer' },
-            'Delta': { x: 0.8, y: 0.5, type: 'consumer' },
-            'Echo': { x: 0.5, y: 0.85, type: 'consumer' }
-        };
+        // Node positions (normalized 0-1) - populated by loadNodes()
+        let nodes = {};
 
-        const edges = [
-            { source: 'Alpha', target: 'Bravo', carrier: 'electricity' },
-            { source: 'Alpha', target: 'Delta', carrier: 'electricity' },
-            { source: 'Alpha', target: 'Echo', carrier: 'electricity' },
-            { source: 'Bravo', target: 'Charlie', carrier: 'hydrogen' },
-            { source: 'Bravo', target: 'Echo', carrier: 'hydrogen' }
-        ];
+        // Edges - populated by loadNodes()
+        let edges = [];
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            loadConfig();
-            loadNetwork();
-            renderNetwork();
-        });
+        // Note: Initialization moved to end of script (loadConfig, loadNodes, renderNetwork)
 
         // Load configuration
         async function loadConfig() {
@@ -734,6 +1010,7 @@
             edges.forEach(edge => {
                 const source = nodes[edge.source];
                 const target = nodes[edge.target];
+                if (!source || !target) return;  // Skip if nodes not yet loaded
 
                 const x1 = source.x * rect.width;
                 const y1 = source.y * rect.height;
@@ -1301,6 +1578,330 @@
 
         // Initialize charts on page load
         document.addEventListener('DOMContentLoaded', initCharts);
+
+        // =========================================
+        // Node Management Functions
+        // =========================================
+
+        let nodeRegistry = {
+            generators: [],
+            transformers: [],
+            consumers: []
+        };
+
+        let currentNodeType = null;
+        let editingNodeName = null;
+
+        // Load nodes from backend
+        async function loadNodes() {
+            try {
+                const res = await fetch(`${API_BASE}/api/nodes`);
+                nodeRegistry = await res.json();
+                renderNodeLists();
+                rebuildNodesAndEdges();
+            } catch (e) {
+                console.error('Failed to load nodes:', e);
+            }
+        }
+
+        // Render node lists in the UI
+        function renderNodeLists() {
+            // Generators
+            const genList = document.getElementById('generators-list');
+            genList.innerHTML = nodeRegistry.generators.map(g => `
+                <div class="node-item">
+                    <span class="node-name">${g.name}</span>
+                    <span class="node-info">${g.capacity} kW @ ${g.cost} ct/kWh (${g.profile_type || 'solar'})</span>
+                    <button class="btn-small btn-edit" onclick="editNode('generator', '${g.name}')">Edit</button>
+                    <button class="btn-small btn-delete" onclick="deleteNode('generator', '${g.name}')">X</button>
+                </div>
+            `).join('');
+            document.getElementById('gen-count').textContent = nodeRegistry.generators.length;
+
+            // Transformers
+            const transList = document.getElementById('transformers-list');
+            transList.innerHTML = nodeRegistry.transformers.map(t => `
+                <div class="node-item">
+                    <span class="node-name">${t.name}</span>
+                    <span class="node-info">${(t.efficiency * 100).toFixed(0)}% eff @ ${t.cost} ct/kWh</span>
+                    <button class="btn-small btn-edit" onclick="editNode('transformer', '${t.name}')">Edit</button>
+                    <button class="btn-small btn-delete" onclick="deleteNode('transformer', '${t.name}')">X</button>
+                </div>
+            `).join('');
+            document.getElementById('trans-count').textContent = nodeRegistry.transformers.length;
+
+            // Consumers
+            const consList = document.getElementById('consumers-list');
+            consList.innerHTML = nodeRegistry.consumers.map(c => {
+                const typeShort = c.consumer_type === 'cobb_douglas' ? 'C-D' :
+                                  c.consumer_type.includes('elec') ? 'Log-E' : 'Log-H';
+                return `
+                <div class="node-item">
+                    <span class="node-name">${c.name}</span>
+                    <span class="node-info">${typeShort} (${c.carrier})</span>
+                    <button class="btn-small btn-edit" onclick="editNode('consumer', '${c.name}')">Edit</button>
+                    <button class="btn-small btn-delete" onclick="deleteNode('consumer', '${c.name}')">X</button>
+                </div>
+            `}).join('');
+            document.getElementById('cons-count').textContent = nodeRegistry.consumers.length;
+        }
+
+        // Rebuild nodes and edges objects from registry
+        function rebuildNodesAndEdges() {
+            // Clear existing nodes (keep only from registry)
+            nodes = {};
+            edges.length = 0;
+
+            // Add generators
+            nodeRegistry.generators.forEach((g, i) => {
+                const pos = g.position || [0, 2, 0];
+                nodes[g.name] = {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6,
+                    type: 'producer'
+                };
+            });
+
+            // Add transformers
+            nodeRegistry.transformers.forEach((t, i) => {
+                const pos = t.position || [-2, 0, 0];
+                nodes[t.name] = {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6,
+                    type: 'converter'
+                };
+                // Create edges from all generators to this transformer
+                nodeRegistry.generators.forEach(g => {
+                    edges.push({ source: g.name, target: t.name, carrier: 'electricity' });
+                });
+            });
+
+            // Add consumers
+            nodeRegistry.consumers.forEach((c, i) => {
+                const pos = c.position || [0, -2, 0];
+                nodes[c.name] = {
+                    x: (pos[0] + 3) / 6,
+                    y: 1 - (pos[1] + 3) / 6,
+                    type: 'consumer'
+                };
+                // Create edges based on carrier type
+                if (c.carrier === 'electricity' || c.carrier === 'both') {
+                    nodeRegistry.generators.forEach(g => {
+                        edges.push({ source: g.name, target: c.name, carrier: 'electricity' });
+                    });
+                }
+                if (c.carrier === 'hydrogen' || c.carrier === 'both') {
+                    nodeRegistry.transformers.forEach(t => {
+                        edges.push({ source: t.name, target: c.name, carrier: 'hydrogen' });
+                    });
+                }
+            });
+
+            renderNetwork();
+        }
+
+        // Open modal for adding a node
+        function openAddNodeModal(nodeType) {
+            currentNodeType = nodeType;
+            editingNodeName = null;
+
+            // Set modal title
+            const titles = { generator: 'Add Generator', transformer: 'Add Transformer', consumer: 'Add Consumer' };
+            document.getElementById('modal-title').textContent = titles[nodeType];
+
+            // Reset form
+            document.getElementById('node-name').value = '';
+            document.getElementById('node-name').disabled = false;
+
+            // Show/hide type-specific fields
+            document.getElementById('generator-fields').style.display = nodeType === 'generator' ? 'block' : 'none';
+            document.getElementById('transformer-fields').style.display = nodeType === 'transformer' ? 'block' : 'none';
+            document.getElementById('consumer-fields').style.display = nodeType === 'consumer' ? 'block' : 'none';
+
+            // Reset default values
+            if (nodeType === 'generator') {
+                document.getElementById('gen-capacity').value = 100;
+                document.getElementById('gen-cost').value = 8;
+                document.getElementById('gen-profile').value = 'solar';
+            } else if (nodeType === 'transformer') {
+                document.getElementById('trans-capacity').value = 50;
+                document.getElementById('trans-efficiency').value = 70;
+                document.getElementById('trans-cost').value = 1.5;
+            } else if (nodeType === 'consumer') {
+                document.getElementById('cons-type').value = 'logarithmic_electricity';
+                toggleConsumerParams();
+            }
+
+            document.getElementById('node-modal').classList.add('active');
+        }
+
+        // Close modal
+        function closeNodeModal() {
+            document.getElementById('node-modal').classList.remove('active');
+            currentNodeType = null;
+            editingNodeName = null;
+        }
+
+        // Toggle consumer params based on type selection
+        function toggleConsumerParams() {
+            const consType = document.getElementById('cons-type').value;
+            document.getElementById('log-params').style.display = consType.startsWith('logarithmic') ? 'block' : 'none';
+            document.getElementById('cd-params').style.display = consType === 'cobb_douglas' ? 'block' : 'none';
+        }
+
+        // Save node (add or update)
+        async function saveNode() {
+            const name = document.getElementById('node-name').value.trim();
+            if (!name) {
+                showNodeStatus('Please enter a node name', 'error');
+                return;
+            }
+
+            let endpoint, data, method;
+
+            if (currentNodeType === 'generator') {
+                endpoint = editingNodeName ? `/api/nodes/generators/${editingNodeName}` : '/api/nodes/generators';
+                method = editingNodeName ? 'PUT' : 'POST';
+                data = {
+                    name: name,
+                    capacity: parseFloat(document.getElementById('gen-capacity').value),
+                    cost: parseFloat(document.getElementById('gen-cost').value),
+                    profile_type: document.getElementById('gen-profile').value
+                };
+            } else if (currentNodeType === 'transformer') {
+                endpoint = editingNodeName ? `/api/nodes/transformers/${editingNodeName}` : '/api/nodes/transformers';
+                method = editingNodeName ? 'PUT' : 'POST';
+                data = {
+                    name: name,
+                    capacity: parseFloat(document.getElementById('trans-capacity').value),
+                    efficiency: parseFloat(document.getElementById('trans-efficiency').value) / 100,
+                    cost: parseFloat(document.getElementById('trans-cost').value)
+                };
+            } else if (currentNodeType === 'consumer') {
+                const consType = document.getElementById('cons-type').value;
+                endpoint = editingNodeName ? `/api/nodes/consumers/${editingNodeName}` : '/api/nodes/consumers';
+                method = editingNodeName ? 'PUT' : 'POST';
+                data = {
+                    name: name,
+                    consumer_type: consType,
+                    carrier: consType === 'logarithmic_electricity' ? 'electricity' :
+                             consType === 'logarithmic_hydrogen' ? 'hydrogen' : 'both'
+                };
+
+                if (consType.startsWith('logarithmic')) {
+                    data.log_scale = parseFloat(document.getElementById('cons-log-scale').value);
+                    data.log_shape = parseFloat(document.getElementById('cons-log-shape').value);
+                    data.log_max_quantity = parseFloat(document.getElementById('cons-log-max').value);
+                } else if (consType === 'cobb_douglas') {
+                    data.cd_A = parseFloat(document.getElementById('cons-cd-A').value);
+                    data.cd_alpha = parseFloat(document.getElementById('cons-cd-alpha').value);
+                    data.cd_beta = parseFloat(document.getElementById('cons-cd-beta').value);
+                    data.cd_h_per_bundle = parseFloat(document.getElementById('cons-cd-h').value);
+                    data.cd_e_per_bundle = parseFloat(document.getElementById('cons-cd-e').value);
+                    data.cd_max_bundles = parseFloat(document.getElementById('cons-cd-max').value);
+                }
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    closeNodeModal();
+                    loadNodes();
+                    showNodeStatus(`${currentNodeType} ${editingNodeName ? 'updated' : 'added'} successfully!`, 'success');
+                } else {
+                    showNodeStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNodeStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Edit existing node
+        function editNode(nodeType, name) {
+            const collections = { generator: 'generators', transformer: 'transformers', consumer: 'consumers' };
+            const node = nodeRegistry[collections[nodeType]].find(n => n.name === name);
+            if (!node) return;
+
+            openAddNodeModal(nodeType);
+            editingNodeName = name;
+
+            // Update modal title
+            const titles = { generator: 'Edit Generator', transformer: 'Edit Transformer', consumer: 'Edit Consumer' };
+            document.getElementById('modal-title').textContent = titles[nodeType];
+
+            // Populate form
+            document.getElementById('node-name').value = name;
+            document.getElementById('node-name').disabled = true;  // Can't rename
+
+            if (nodeType === 'generator') {
+                document.getElementById('gen-capacity').value = node.capacity;
+                document.getElementById('gen-cost').value = node.cost;
+                document.getElementById('gen-profile').value = node.profile_type || 'solar';
+            } else if (nodeType === 'transformer') {
+                document.getElementById('trans-capacity').value = node.capacity;
+                document.getElementById('trans-efficiency').value = (node.efficiency || 0.7) * 100;
+                document.getElementById('trans-cost').value = node.cost;
+            } else if (nodeType === 'consumer') {
+                document.getElementById('cons-type').value = node.consumer_type;
+                toggleConsumerParams();
+                if (node.consumer_type.startsWith('logarithmic')) {
+                    document.getElementById('cons-log-scale').value = node.log_scale || 30;
+                    document.getElementById('cons-log-shape').value = node.log_shape || 5;
+                    document.getElementById('cons-log-max').value = node.log_max_quantity || 25;
+                } else if (node.consumer_type === 'cobb_douglas') {
+                    document.getElementById('cons-cd-A').value = node.cd_A || 15;
+                    document.getElementById('cons-cd-alpha').value = node.cd_alpha || 0.4;
+                    document.getElementById('cons-cd-beta').value = node.cd_beta || 0.6;
+                    document.getElementById('cons-cd-h').value = node.cd_h_per_bundle || 1;
+                    document.getElementById('cons-cd-e').value = node.cd_e_per_bundle || 3;
+                    document.getElementById('cons-cd-max').value = node.cd_max_bundles || 15;
+                }
+            }
+        }
+
+        // Delete node
+        async function deleteNode(nodeType, name) {
+            if (!confirm(`Delete ${nodeType} "${name}"?`)) return;
+
+            const collections = { generator: 'generators', transformer: 'transformers', consumer: 'consumers' };
+
+            try {
+                const res = await fetch(`${API_BASE}/api/nodes/${collections[nodeType]}/${name}`, {
+                    method: 'DELETE'
+                });
+                const result = await res.json();
+
+                if (result.status === 'ok') {
+                    loadNodes();
+                    showNodeStatus(`${nodeType} "${name}" deleted`, 'success');
+                } else {
+                    showNodeStatus('Error: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showNodeStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Show status message
+        function showNodeStatus(message, type) {
+            const status = document.getElementById('node-status');
+            status.className = 'status ' + type;
+            status.textContent = message;
+            setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
+        }
+
+        // Update initialization to load nodes
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            loadNodes();  // Load dynamic nodes
+            renderNetwork();
+        });
     </script>
 </body>
 </html>

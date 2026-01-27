@@ -20,7 +20,8 @@ SIMULATION_AVAILABLE = False
 try:
     from simulation import (
         SimulationConfig, HydrogenSystemSimulation,
-        LogarithmicUtility, CobbDouglasUtility
+        LogarithmicUtility, CobbDouglasUtility,
+        GeneratorConfig, TransformerConfig, ConsumerConfig
     )
     SIMULATION_AVAILABLE = True
 except ImportError as e:
@@ -72,6 +73,121 @@ last_results = None
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(SCRIPT_DIR, 'network_data.json')
 BLEND_PATH = os.path.join(SCRIPT_DIR, 'hydrogen_network.blend')
+NODE_REGISTRY_PATH = os.path.join(SCRIPT_DIR, 'node_registry.json')
+
+# =============================================================================
+# Dynamic Node Registry
+# =============================================================================
+
+# Default node registry (backwards compatible with original nodes)
+DEFAULT_NODE_REGISTRY = {
+    'generators': [
+        {'name': 'Alpha', 'capacity': 100.0, 'cost': 8.0, 'profile_type': 'solar', 'position': [0, 2, 0]}
+    ],
+    'transformers': [
+        {'name': 'Bravo', 'capacity': 50.0, 'efficiency': 0.7, 'cost': 1.5,
+         'input_carrier': 'electricity', 'output_carrier': 'hydrogen', 'position': [-2, 0, 0]}
+    ],
+    'consumers': [
+        {'name': 'Charlie', 'consumer_type': 'logarithmic_hydrogen', 'carrier': 'hydrogen',
+         'log_scale': 30.0, 'log_shape': 5.0, 'log_max_quantity': 25.0, 'log_num_tranches': 5,
+         'position': [-2, -2, 0]},
+        {'name': 'Delta', 'consumer_type': 'logarithmic_electricity', 'carrier': 'electricity',
+         'log_scale': 25.0, 'log_shape': 10.0, 'log_max_quantity': 50.0, 'log_num_tranches': 5,
+         'position': [2, 0, 0]},
+        {'name': 'Echo', 'consumer_type': 'cobb_douglas', 'carrier': 'both',
+         'cd_A': 15.0, 'cd_alpha': 0.4, 'cd_beta': 0.6, 'cd_max_bundles': 15.0,
+         'cd_h_per_bundle': 1.0, 'cd_e_per_bundle': 3.0, 'cd_num_tranches': 5,
+         'position': [0, -2, 0]}
+    ]
+}
+
+# Active node registry
+node_registry = None
+
+
+def load_node_registry():
+    """Load node registry from JSON file or create default."""
+    global node_registry
+    if os.path.exists(NODE_REGISTRY_PATH):
+        try:
+            with open(NODE_REGISTRY_PATH, 'r') as f:
+                node_registry = json.load(f)
+        except Exception as e:
+            print(f"Error loading node registry: {e}")
+            node_registry = json.loads(json.dumps(DEFAULT_NODE_REGISTRY))
+    else:
+        node_registry = json.loads(json.dumps(DEFAULT_NODE_REGISTRY))
+        save_node_registry()
+
+
+def save_node_registry():
+    """Save node registry to JSON file."""
+    with open(NODE_REGISTRY_PATH, 'w') as f:
+        json.dump(node_registry, f, indent=2)
+
+
+def sync_nodes_to_network():
+    """Synchronize node registry to network topology JSON."""
+    network_nodes = []
+    network_edges = []
+
+    # Add generators
+    for gen in node_registry['generators']:
+        network_nodes.append({
+            'name': gen['name'],
+            'node_type': 'producer',
+            'carrier': 'electricity',
+            'position': gen.get('position', [0, 0, 0])
+        })
+
+    # Add transformers
+    for trans in node_registry['transformers']:
+        network_nodes.append({
+            'name': trans['name'],
+            'node_type': 'converter',
+            'carrier': 'both',
+            'position': trans.get('position', [0, 0, 0])
+        })
+        # Create edges from generators to this transformer
+        for gen in node_registry['generators']:
+            network_edges.append({
+                'source': gen['name'],
+                'target': trans['name'],
+                'carrier': 'electricity'
+            })
+
+    # Add consumers
+    for cons in node_registry['consumers']:
+        network_nodes.append({
+            'name': cons['name'],
+            'node_type': 'consumer',
+            'carrier': cons['carrier'],
+            'position': cons.get('position', [0, 0, 0])
+        })
+        # Create edges based on carrier type
+        if cons['carrier'] in ['electricity', 'both']:
+            for gen in node_registry['generators']:
+                network_edges.append({
+                    'source': gen['name'],
+                    'target': cons['name'],
+                    'carrier': 'electricity'
+                })
+        if cons['carrier'] in ['hydrogen', 'both']:
+            for trans in node_registry['transformers']:
+                network_edges.append({
+                    'source': trans['name'],
+                    'target': cons['name'],
+                    'carrier': 'hydrogen'
+                })
+
+    # Save to network JSON
+    with open(JSON_PATH, 'w') as f:
+        json.dump({'nodes': network_nodes, 'edges': network_edges}, f, indent=2)
+
+
+# Load node registry at startup
+load_node_registry()
 
 
 @app.route('/')
@@ -156,7 +272,7 @@ def update_network():
 
 @app.route('/api/simulate', methods=['POST'])
 def run_simulation():
-    """Run the energy simulation with current config."""
+    """Run the energy simulation with dynamic node configuration."""
     global last_results
 
     if not SIMULATION_AVAILABLE:
@@ -166,43 +282,60 @@ def run_simulation():
         }), 503
 
     try:
-        # Create utility function objects from config
-        charlie_utility = LogarithmicUtility(
-            scale=current_config['charlie_scale'],
-            shape=current_config['charlie_shape'],
-            max_quantity=current_config['charlie_max_quantity'],
-            num_tranches=int(current_config['charlie_num_tranches'])
-        )
+        # Build generator configs from node registry
+        generators = [
+            GeneratorConfig(
+                name=g['name'],
+                capacity=g['capacity'],
+                cost=g['cost'],
+                profile_type=g.get('profile_type', 'solar')
+            )
+            for g in node_registry['generators']
+        ]
 
-        delta_utility = LogarithmicUtility(
-            scale=current_config['delta_scale'],
-            shape=current_config['delta_shape'],
-            max_quantity=current_config['delta_max_quantity'],
-            num_tranches=int(current_config['delta_num_tranches'])
-        )
+        # Build transformer configs from node registry
+        transformers = [
+            TransformerConfig(
+                name=t['name'],
+                capacity=t['capacity'],
+                efficiency=t['efficiency'],
+                cost=t['cost'],
+                input_carrier=t.get('input_carrier', 'electricity'),
+                output_carrier=t.get('output_carrier', 'hydrogen')
+            )
+            for t in node_registry['transformers']
+        ]
 
-        echo_utility = CobbDouglasUtility(
-            A=current_config['echo_A'],
-            alpha=current_config['echo_alpha'],
-            beta=current_config['echo_beta'],
-            max_bundles=current_config['echo_max_bundles'],
-            h_per_bundle=current_config['echo_h_per_bundle'],
-            e_per_bundle=current_config['echo_e_per_bundle'],
-            num_tranches=int(current_config['echo_num_tranches'])
-        )
+        # Build consumer configs from node registry
+        consumers = []
+        for c in node_registry['consumers']:
+            consumer = ConsumerConfig(
+                name=c['name'],
+                consumer_type=c['consumer_type'],
+                carrier=c['carrier']
+            )
+            # Add type-specific parameters
+            if c['consumer_type'].startswith('logarithmic'):
+                consumer.log_scale = c.get('log_scale', 30.0)
+                consumer.log_shape = c.get('log_shape', 5.0)
+                consumer.log_max_quantity = c.get('log_max_quantity', 25.0)
+                consumer.log_num_tranches = int(c.get('log_num_tranches', 5))
+            elif c['consumer_type'] == 'cobb_douglas':
+                consumer.cd_A = c.get('cd_A', 15.0)
+                consumer.cd_alpha = c.get('cd_alpha', 0.4)
+                consumer.cd_beta = c.get('cd_beta', 0.6)
+                consumer.cd_max_bundles = c.get('cd_max_bundles', 15.0)
+                consumer.cd_h_per_bundle = c.get('cd_h_per_bundle', 1.0)
+                consumer.cd_e_per_bundle = c.get('cd_e_per_bundle', 3.0)
+                consumer.cd_num_tranches = int(c.get('cd_num_tranches', 5))
+            consumers.append(consumer)
 
         config = SimulationConfig(
             periods=int(current_config['periods']),
-            alpha_capacity=current_config['alpha_capacity'],
-            alpha_cost=current_config['alpha_cost'],
-            bravo_capacity=current_config['bravo_capacity'],
-            bravo_efficiency=current_config['bravo_efficiency'],
-            bravo_cost=current_config['bravo_cost'],
             grid_cost=current_config['grid_cost'],
-            charlie_utility=charlie_utility,
-            delta_utility=delta_utility,
-            echo_utility=echo_utility,
-            include_echo=current_config['include_echo'],
+            generators=generators,
+            transformers=transformers,
+            consumers=consumers
         )
 
         sim = HydrogenSystemSimulation(config)
@@ -236,7 +369,8 @@ def run_simulation():
             'summary': summary,
             'flows': flow_data,
             'price_analysis': price_analysis,
-            'config': current_config.copy()
+            'config': current_config.copy(),
+            'node_registry': node_registry
         }
 
         return jsonify(last_results)
@@ -258,6 +392,241 @@ def get_results():
         return jsonify(last_results)
     else:
         return jsonify({'status': 'no_results', 'message': 'No simulation has been run yet'})
+
+
+# =============================================================================
+# Node Management API Endpoints
+# =============================================================================
+
+@app.route('/api/nodes', methods=['GET'])
+def get_all_nodes():
+    """Get all configured nodes."""
+    return jsonify(node_registry)
+
+
+@app.route('/api/nodes/generators', methods=['GET', 'POST'])
+def manage_generators():
+    """List or add generators."""
+    if request.method == 'GET':
+        return jsonify(node_registry['generators'])
+
+    # POST - add new generator
+    data = request.json
+    if not data.get('name'):
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+
+    # Check for duplicate names
+    if any(g['name'] == data['name'] for g in node_registry['generators']):
+        return jsonify({'status': 'error', 'message': 'Generator with this name already exists'}), 400
+
+    generator = {
+        'name': data['name'],
+        'capacity': float(data.get('capacity', 100.0)),
+        'cost': float(data.get('cost', 8.0)),
+        'profile_type': data.get('profile_type', 'solar'),
+        'position': data.get('position', [0, 2, 0])
+    }
+    node_registry['generators'].append(generator)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'generator': generator})
+
+
+@app.route('/api/nodes/generators/<name>', methods=['GET', 'PUT', 'DELETE'])
+def manage_generator(name):
+    """Get, update or delete a specific generator."""
+    generators = node_registry['generators']
+    gen_idx = next((i for i, g in enumerate(generators) if g['name'] == name), None)
+
+    if gen_idx is None:
+        return jsonify({'status': 'error', 'message': 'Generator not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(generators[gen_idx])
+
+    if request.method == 'DELETE':
+        del generators[gen_idx]
+        save_node_registry()
+        sync_nodes_to_network()
+        return jsonify({'status': 'ok', 'message': f'Generator {name} deleted'})
+
+    # PUT - update
+    data = request.json
+    generators[gen_idx].update({
+        'capacity': float(data.get('capacity', generators[gen_idx]['capacity'])),
+        'cost': float(data.get('cost', generators[gen_idx]['cost'])),
+        'profile_type': data.get('profile_type', generators[gen_idx].get('profile_type', 'solar')),
+        'position': data.get('position', generators[gen_idx].get('position', [0, 0, 0]))
+    })
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'generator': generators[gen_idx]})
+
+
+@app.route('/api/nodes/transformers', methods=['GET', 'POST'])
+def manage_transformers():
+    """List or add transformers."""
+    if request.method == 'GET':
+        return jsonify(node_registry['transformers'])
+
+    # POST - add new transformer
+    data = request.json
+    if not data.get('name'):
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+
+    if any(t['name'] == data['name'] for t in node_registry['transformers']):
+        return jsonify({'status': 'error', 'message': 'Transformer with this name already exists'}), 400
+
+    transformer = {
+        'name': data['name'],
+        'capacity': float(data.get('capacity', 50.0)),
+        'efficiency': float(data.get('efficiency', 0.7)),
+        'cost': float(data.get('cost', 1.5)),
+        'input_carrier': data.get('input_carrier', 'electricity'),
+        'output_carrier': data.get('output_carrier', 'hydrogen'),
+        'position': data.get('position', [-2, 0, 0])
+    }
+    node_registry['transformers'].append(transformer)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'transformer': transformer})
+
+
+@app.route('/api/nodes/transformers/<name>', methods=['GET', 'PUT', 'DELETE'])
+def manage_transformer(name):
+    """Get, update or delete a specific transformer."""
+    transformers = node_registry['transformers']
+    trans_idx = next((i for i, t in enumerate(transformers) if t['name'] == name), None)
+
+    if trans_idx is None:
+        return jsonify({'status': 'error', 'message': 'Transformer not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(transformers[trans_idx])
+
+    if request.method == 'DELETE':
+        del transformers[trans_idx]
+        save_node_registry()
+        sync_nodes_to_network()
+        return jsonify({'status': 'ok', 'message': f'Transformer {name} deleted'})
+
+    # PUT - update
+    data = request.json
+    transformers[trans_idx].update({
+        'capacity': float(data.get('capacity', transformers[trans_idx]['capacity'])),
+        'efficiency': float(data.get('efficiency', transformers[trans_idx]['efficiency'])),
+        'cost': float(data.get('cost', transformers[trans_idx]['cost'])),
+        'input_carrier': data.get('input_carrier', transformers[trans_idx].get('input_carrier', 'electricity')),
+        'output_carrier': data.get('output_carrier', transformers[trans_idx].get('output_carrier', 'hydrogen')),
+        'position': data.get('position', transformers[trans_idx].get('position', [0, 0, 0]))
+    })
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'transformer': transformers[trans_idx]})
+
+
+@app.route('/api/nodes/consumers', methods=['GET', 'POST'])
+def manage_consumers():
+    """List or add consumers."""
+    if request.method == 'GET':
+        return jsonify(node_registry['consumers'])
+
+    # POST - add new consumer
+    data = request.json
+    if not data.get('name'):
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+
+    if any(c['name'] == data['name'] for c in node_registry['consumers']):
+        return jsonify({'status': 'error', 'message': 'Consumer with this name already exists'}), 400
+
+    consumer_type = data.get('consumer_type', 'logarithmic_electricity')
+
+    consumer = {
+        'name': data['name'],
+        'consumer_type': consumer_type,
+        'carrier': data.get('carrier', 'electricity' if 'electricity' in consumer_type else
+                           'hydrogen' if 'hydrogen' in consumer_type else 'both'),
+        'position': data.get('position', [0, -2, 0])
+    }
+
+    # Add type-specific parameters
+    if consumer_type.startswith('logarithmic'):
+        consumer.update({
+            'log_scale': float(data.get('log_scale', 30.0)),
+            'log_shape': float(data.get('log_shape', 5.0)),
+            'log_max_quantity': float(data.get('log_max_quantity', 25.0)),
+            'log_num_tranches': int(data.get('log_num_tranches', 5))
+        })
+    elif consumer_type == 'cobb_douglas':
+        consumer.update({
+            'cd_A': float(data.get('cd_A', 15.0)),
+            'cd_alpha': float(data.get('cd_alpha', 0.4)),
+            'cd_beta': float(data.get('cd_beta', 0.6)),
+            'cd_max_bundles': float(data.get('cd_max_bundles', 15.0)),
+            'cd_h_per_bundle': float(data.get('cd_h_per_bundle', 1.0)),
+            'cd_e_per_bundle': float(data.get('cd_e_per_bundle', 3.0)),
+            'cd_num_tranches': int(data.get('cd_num_tranches', 5))
+        })
+
+    node_registry['consumers'].append(consumer)
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'consumer': consumer})
+
+
+@app.route('/api/nodes/consumers/<name>', methods=['GET', 'PUT', 'DELETE'])
+def manage_consumer(name):
+    """Get, update or delete a specific consumer."""
+    consumers = node_registry['consumers']
+    cons_idx = next((i for i, c in enumerate(consumers) if c['name'] == name), None)
+
+    if cons_idx is None:
+        return jsonify({'status': 'error', 'message': 'Consumer not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(consumers[cons_idx])
+
+    if request.method == 'DELETE':
+        del consumers[cons_idx]
+        save_node_registry()
+        sync_nodes_to_network()
+        return jsonify({'status': 'ok', 'message': f'Consumer {name} deleted'})
+
+    # PUT - update
+    data = request.json
+    consumer = consumers[cons_idx]
+
+    # Update common fields
+    consumer['position'] = data.get('position', consumer.get('position', [0, 0, 0]))
+
+    # Update type-specific fields
+    if consumer['consumer_type'].startswith('logarithmic'):
+        consumer.update({
+            'log_scale': float(data.get('log_scale', consumer.get('log_scale', 30.0))),
+            'log_shape': float(data.get('log_shape', consumer.get('log_shape', 5.0))),
+            'log_max_quantity': float(data.get('log_max_quantity', consumer.get('log_max_quantity', 25.0))),
+            'log_num_tranches': int(data.get('log_num_tranches', consumer.get('log_num_tranches', 5)))
+        })
+    elif consumer['consumer_type'] == 'cobb_douglas':
+        consumer.update({
+            'cd_A': float(data.get('cd_A', consumer.get('cd_A', 15.0))),
+            'cd_alpha': float(data.get('cd_alpha', consumer.get('cd_alpha', 0.4))),
+            'cd_beta': float(data.get('cd_beta', consumer.get('cd_beta', 0.6))),
+            'cd_max_bundles': float(data.get('cd_max_bundles', consumer.get('cd_max_bundles', 15.0))),
+            'cd_h_per_bundle': float(data.get('cd_h_per_bundle', consumer.get('cd_h_per_bundle', 1.0))),
+            'cd_e_per_bundle': float(data.get('cd_e_per_bundle', consumer.get('cd_e_per_bundle', 3.0))),
+            'cd_num_tranches': int(data.get('cd_num_tranches', consumer.get('cd_num_tranches', 5)))
+        })
+
+    save_node_registry()
+    sync_nodes_to_network()
+
+    return jsonify({'status': 'ok', 'consumer': consumer})
 
 
 @app.route('/api/blender/export', methods=['POST'])
