@@ -186,9 +186,9 @@ class HydrogenSystemSimulation:
         # Create model
         self.model = solph.Model(self.energy_system)
 
-        # Solve
+        # Solve (using HiGHS solver - pip install highspy)
         print("Solving optimization model...")
-        self.model.solve(solver='cbc', solve_kwargs={'tee': False})
+        self.model.solve(solver='highs', solve_kwargs={'tee': False})
 
         # Get results
         self.results = solph.processing.results(self.model)
