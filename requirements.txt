@@ -1,0 +1,16 @@
+# Hydrogen System Simulation Dependencies
+
+# Network topology
+networkx>=3.0
+
+# Energy system modeling
+oemof.solph>=0.5
+pandas>=2.0
+
+# Solver for oemof (choose one):
+# Option 1: Install via conda: conda install -c conda-forge coincbc
+# Option 2: Install via pip (if available): pip install cylp
+
+# Note: bpy (Blender Python API) is built into Blender
+# and does not need to be installed separately.
+# Run blender_visualize.py from within Blender.
