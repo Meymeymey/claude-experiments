@@ -418,6 +418,131 @@ def load_network_from_json(filepath: str) -> dict:
         return json.load(f)
 
 
+def export_network_to_json(filepath: str = None):
+    """
+    Export current node positions from Blender back to JSON.
+    Call this after moving nodes in Blender to sync with simulation.
+    """
+    if not BPY_AVAILABLE:
+        print("Cannot export: bpy not available")
+        return
+
+    if filepath is None:
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        filepath = os.path.join(script_dir, 'network_data.json')
+
+    # Node type mapping based on object shape
+    node_names = ['Alpha', 'Bravo', 'Charlie', 'Delta']
+
+    # Load existing network data to preserve node_type and carrier info
+    existing_data = None
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            existing_data = json.load(f)
+
+    # Build node lookup from existing data
+    node_info = {}
+    if existing_data:
+        for node in existing_data['nodes']:
+            node_info[node['name']] = {
+                'node_type': node['node_type'],
+                'carrier': node['carrier']
+            }
+
+    # Default node info if no existing data
+    default_info = {
+        'Alpha': {'node_type': 'producer', 'carrier': 'electricity'},
+        'Bravo': {'node_type': 'converter', 'carrier': 'both'},
+        'Charlie': {'node_type': 'consumer', 'carrier': 'hydrogen'},
+        'Delta': {'node_type': 'consumer', 'carrier': 'electricity'},
+    }
+
+    # Extract current positions from Blender objects
+    nodes = []
+    for name in node_names:
+        obj = bpy.data.objects.get(name)
+        if obj:
+            info = node_info.get(name, default_info.get(name, {}))
+            nodes.append({
+                'name': name,
+                'node_type': info.get('node_type', 'consumer'),
+                'carrier': info.get('carrier', 'electricity'),
+                'position': list(obj.location)
+            })
+            print(f"  {name}: {list(obj.location)}")
+
+    # Preserve edges from existing data or use defaults
+    if existing_data and 'edges' in existing_data:
+        edges = existing_data['edges']
+    else:
+        edges = [
+            {'source': 'Alpha', 'target': 'Bravo', 'carrier': 'electricity'},
+            {'source': 'Alpha', 'target': 'Delta', 'carrier': 'electricity'},
+            {'source': 'Bravo', 'target': 'Charlie', 'carrier': 'hydrogen'},
+        ]
+
+    # Write updated network data
+    network_data = {
+        'nodes': nodes,
+        'edges': edges
+    }
+
+    with open(filepath, 'w') as f:
+        json.dump(network_data, f, indent=2)
+
+    print(f"\nExported network to: {filepath}")
+    return network_data
+
+
+def sync_from_blender():
+    """
+    Convenience function to export positions and update pipes.
+    Run this in Blender after moving nodes.
+    """
+    if not BPY_AVAILABLE:
+        return
+
+    print("Syncing node positions from Blender...")
+
+    # Export current positions
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    json_path = os.path.join(script_dir, 'network_data.json')
+    network_data = export_network_to_json(json_path)
+
+    if network_data:
+        # Update pipe positions to match new node positions
+        node_positions = {n['name']: tuple(n['position']) for n in network_data['nodes']}
+
+        for edge in network_data['edges']:
+            pipe_name = f"Pipe_{edge['source']}_{edge['target']}"
+            pipe_obj = bpy.data.objects.get(pipe_name)
+
+            if pipe_obj:
+                # Remove old pipe
+                bpy.data.objects.remove(pipe_obj, do_unlink=True)
+
+            # Create new pipe with updated positions
+            start_pos = node_positions[edge['source']]
+            end_pos = node_positions[edge['target']]
+
+            start_vec = Vector(start_pos)
+            end_vec = Vector(end_pos)
+            direction = (end_vec - start_vec).normalized()
+
+            adjusted_start = start_vec + direction * NODE_SCALE
+            adjusted_end = end_vec - direction * NODE_SCALE
+
+            create_pipe(
+                name=pipe_name,
+                start_pos=tuple(adjusted_start),
+                end_pos=tuple(adjusted_end),
+                carrier=edge['carrier']
+            )
+
+        print("Pipes updated to match new node positions.")
+        print("\nTo update the simulation, run: python network.py")
+
+
 def build_visualization_from_data(network_data: dict, animate: bool = True):
     """Build the complete visualization from network data."""
     if not BPY_AVAILABLE:

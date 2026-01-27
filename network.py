@@ -1,12 +1,16 @@
 """
 Network topology module using NetworkX.
 Defines the spatial layout of the hydrogen/electricity system.
+
+Positions can be synced from Blender by running sync_from_blender() in Blender,
+which exports to network_data.json. This module will read those positions.
 """
 
 import networkx as nx
 import json
+import os
 from dataclasses import dataclass
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 
 @dataclass
@@ -26,9 +30,46 @@ class Pipe:
     carrier: str  # 'electricity' or 'hydrogen'
 
 
-def create_hydrogen_network() -> nx.DiGraph:
+def load_network_from_json(filepath: str) -> Optional[nx.DiGraph]:
+    """
+    Load network from JSON file (exported from Blender).
+    Returns None if file doesn't exist.
+    """
+    if not os.path.exists(filepath):
+        return None
+
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+
+    G = nx.DiGraph()
+
+    # Add nodes
+    for node in data['nodes']:
+        G.add_node(
+            node['name'],
+            node_type=node['node_type'],
+            carrier=node['carrier'],
+            position=tuple(node['position'])
+        )
+
+    # Add edges
+    for edge in data['edges']:
+        G.add_edge(
+            edge['source'],
+            edge['target'],
+            carrier=edge['carrier']
+        )
+
+    return G
+
+
+def create_hydrogen_network(use_json: bool = True, json_path: str = None) -> nx.DiGraph:
     """
     Create the network topology for the hydrogen system.
+
+    Args:
+        use_json: If True, try to load positions from network_data.json first
+        json_path: Path to JSON file. If None, looks in same directory as this script.
 
     Layout:
         Alpha (Electricity Producer)
@@ -45,6 +86,18 @@ def create_hydrogen_network() -> nx.DiGraph:
         v
       Charlie (Hydrogen Consumer)
     """
+    # Try to load from JSON first (synced from Blender)
+    if use_json:
+        if json_path is None:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            json_path = os.path.join(script_dir, 'network_data.json')
+
+        G = load_network_from_json(json_path)
+        if G is not None:
+            print(f"Loaded network from {json_path} (synced from Blender)")
+            return G
+
+    # Default network if no JSON exists
     G = nx.DiGraph()
 
     # Define nodes with their 3D positions (x, y, z) - flat on XY plane
