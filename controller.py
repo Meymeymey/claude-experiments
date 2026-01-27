@@ -203,10 +203,15 @@ def launch_blender():
 
         # Try common Blender paths
         blender_paths = [
-            'blender',  # If in PATH
+            r'C:\Program Files\Blender Foundation\Blender 4.5\blender.exe',
+            r'C:\Program Files\Blender Foundation\Blender 4.4\blender.exe',
+            r'C:\Program Files\Blender Foundation\Blender 4.3\blender.exe',
+            r'C:\Program Files\Blender Foundation\Blender 4.2\blender.exe',
+            r'C:\Program Files\Blender Foundation\Blender 4.1\blender.exe',
             r'C:\Program Files\Blender Foundation\Blender 4.0\blender.exe',
             r'C:\Program Files\Blender Foundation\Blender 3.6\blender.exe',
             r'C:\Program Files\Blender Foundation\Blender\blender.exe',
+            'blender',  # If in PATH
             '/Applications/Blender.app/Contents/MacOS/Blender',
             '/usr/bin/blender',
         ]
