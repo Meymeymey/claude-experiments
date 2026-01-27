@@ -381,11 +381,12 @@
             <ul>
                 <li><a href="#architecture">1. System Architecture</a></li>
                 <li><a href="#libraries">2. Libraries & Technologies</a></li>
-                <li><a href="#economic-model">3. Economic Model</a></li>
-                <li><a href="#optimization">4. Optimization Process</a></li>
-                <li><a href="#data-flow">5. Data Flow</a></li>
-                <li><a href="#api">6. API Reference</a></li>
-                <li><a href="#blender">7. Blender Visualization</a></li>
+                <li><a href="#dynamic-nodes">3. Dynamic Node Management</a></li>
+                <li><a href="#economic-model">4. Economic Model</a></li>
+                <li><a href="#optimization">5. Optimization Process</a></li>
+                <li><a href="#data-flow">6. Data Flow</a></li>
+                <li><a href="#api">7. API Reference</a></li>
+                <li><a href="#blender">8. Blender Visualization</a></li>
             </ul>
         </nav>
 
@@ -547,18 +548,128 @@
             </div>
         </section>
 
-        <!-- Section 3: Economic Model -->
+        <!-- Section 3: Dynamic Node Management -->
+        <section id="dynamic-nodes" class="section">
+            <h2>3. Dynamic Node Management</h2>
+            <p>The simulation supports dynamic creation, modification, and deletion of network nodes through the web interface. Nodes are persisted to a JSON registry file and automatically synchronized with the network topology.</p>
+
+            <h3>3.1 Node Types</h3>
+            <p>Three types of nodes can be created dynamically:</p>
+
+            <table>
+                <tr>
+                    <th>Node Type</th>
+                    <th>Description</th>
+                    <th>Parameters</th>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-yellow">Generator</span></td>
+                    <td>Electricity producer (e.g., solar, wind, baseload)</td>
+                    <td>capacity (kW), cost (ct/kWh), profile_type</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">Transformer</span></td>
+                    <td>Converts between carriers (e.g., electrolyzer)</td>
+                    <td>capacity, efficiency, cost, input/output carriers</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-green">Consumer</span></td>
+                    <td>Consumes electricity and/or hydrogen</td>
+                    <td>consumer_type, utility parameters</td>
+                </tr>
+            </table>
+
+            <h3>3.2 Generator Profiles</h3>
+            <p>Generators can have different production profiles:</p>
+            <ul>
+                <li><strong>Solar:</strong> Sine wave peaking at midday, zero at night</li>
+                <li><strong>Wind:</strong> Variable pattern with multiple harmonics</li>
+                <li><strong>Flat:</strong> Constant availability (baseload)</li>
+            </ul>
+
+            <div class="code-block">
+<pre><span class="keyword">@dataclass</span>
+<span class="keyword">class</span> <span class="function">GeneratorConfig</span>:
+    name: str
+    capacity: float = <span class="number">100.0</span>       <span class="comment"># Max capacity (kW)</span>
+    cost: float = <span class="number">8.0</span>             <span class="comment"># Production cost (ct/kWh)</span>
+    profile_type: str = <span class="string">'solar'</span>   <span class="comment"># 'solar', 'flat', 'wind'</span></pre>
+            </div>
+
+            <h3>3.3 Consumer Types</h3>
+            <p>Three consumer utility models are supported:</p>
+
+            <h4>Logarithmic Utility (Single Carrier)</h4>
+            <div class="equation">
+                U(x) = scale &times; ln(1 + x / shape)
+                <div class="label">Used for electricity-only or hydrogen-only consumers</div>
+            </div>
+
+            <h4>Cobb-Douglas Utility (Dual Carrier)</h4>
+            <div class="equation">
+                U(h, e) = A &times; h<sup>&alpha;</sup> &times; e<sup>&beta;</sup>
+                <div class="label">Requires fixed bundles of hydrogen (h) and electricity (e)</div>
+            </div>
+
+            <div class="code-block">
+<pre><span class="keyword">@dataclass</span>
+<span class="keyword">class</span> <span class="function">ConsumerConfig</span>:
+    name: str
+    consumer_type: str    <span class="comment"># 'logarithmic_electricity', 'logarithmic_hydrogen', 'cobb_douglas'</span>
+    carrier: str          <span class="comment"># 'electricity', 'hydrogen', 'both'</span>
+
+    <span class="comment"># Logarithmic params</span>
+    log_scale: float = <span class="number">30.0</span>
+    log_shape: float = <span class="number">5.0</span>
+    log_max_quantity: float = <span class="number">25.0</span>
+    log_num_tranches: int = <span class="number">5</span>
+
+    <span class="comment"># Cobb-Douglas params</span>
+    cd_A: float = <span class="number">15.0</span>
+    cd_alpha: float = <span class="number">0.4</span>
+    cd_beta: float = <span class="number">0.6</span>
+    cd_max_bundles: float = <span class="number">15.0</span>
+    cd_h_per_bundle: float = <span class="number">1.0</span>
+    cd_e_per_bundle: float = <span class="number">3.0</span></pre>
+            </div>
+
+            <h3>3.4 Node Registry</h3>
+            <p>Nodes are persisted to <code>node_registry.json</code> and automatically loaded at server startup:</p>
+
+            <div class="code-block">
+<pre>{
+  <span class="string">"generators"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Alpha"</span>, <span class="string">"capacity"</span>: <span class="number">100.0</span>, <span class="string">"cost"</span>: <span class="number">8.0</span>, <span class="string">"profile_type"</span>: <span class="string">"solar"</span>}
+  ],
+  <span class="string">"transformers"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Bravo"</span>, <span class="string">"capacity"</span>: <span class="number">50.0</span>, <span class="string">"efficiency"</span>: <span class="number">0.7</span>, <span class="string">"cost"</span>: <span class="number">1.5</span>}
+  ],
+  <span class="string">"consumers"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Charlie"</span>, <span class="string">"consumer_type"</span>: <span class="string">"logarithmic_hydrogen"</span>, ...},
+    {<span class="string">"name"</span>: <span class="string">"Delta"</span>, <span class="string">"consumer_type"</span>: <span class="string">"logarithmic_electricity"</span>, ...},
+    {<span class="string">"name"</span>: <span class="string">"Echo"</span>, <span class="string">"consumer_type"</span>: <span class="string">"cobb_douglas"</span>, ...}
+  ]
+}</pre>
+            </div>
+
+            <div class="highlight">
+                <strong>Automatic Sync:</strong> When nodes are added, modified, or deleted via the API, the network topology (<code>network_data.json</code>) is automatically regenerated to include proper edges between components.
+            </div>
+        </section>
+
+        <!-- Section 4: Economic Model -->
         <section id="economic-model" class="section">
-            <h2>3. Economic Model</h2>
+            <h2>4. Economic Model</h2>
             <p>The simulation uses a <strong>welfare-maximizing</strong> economic model where the objective is to maximize total surplus (consumer utility minus production costs).</p>
 
-            <h3>3.1 The Network Structure</h3>
+            <h3>4.1 The Network Structure</h3>
+            <p>The default network includes the following nodes (all nodes can be added/removed dynamically via the UI):</p>
             <div class="diagram">
                 <div class="flow-diagram">
                     <div class="flow-box producer">
                         <strong>Alpha</strong><br>
-                        Electricity Producer<br>
-                        <small>Cost: 8 ct/kWh</small>
+                        Electricity Producer (Solar)<br>
+                        <small>100 kW, 8 ct/kWh</small>
                     </div>
                     <div class="flow-arrow">electricity</div>
                     <div style="display: flex; gap: 3rem;">
@@ -566,27 +677,34 @@
                             <div class="flow-box converter">
                                 <strong>Bravo</strong><br>
                                 Electrolyzer<br>
-                                <small>Cost: 1.5 ct/kWh, Eff: 70%</small>
+                                <small>50 kW, 70% eff, 1.5 ct/kWh</small>
                             </div>
                             <div class="flow-arrow">hydrogen</div>
-                            <div class="flow-box consumer">
-                                <strong>Charlie</strong><br>
-                                H2 Consumer<br>
-                                <small>WTP: 25/18/12/6 ct/kg</small>
+                            <div style="display: flex; gap: 1rem;">
+                                <div class="flow-box consumer">
+                                    <strong>Charlie</strong><br>
+                                    H2 (Logarithmic)<br>
+                                    <small>scale=30, shape=5</small>
+                                </div>
+                                <div class="flow-box consumer">
+                                    <strong>Echo</strong><br>
+                                    Bundles (Cobb-Douglas)<br>
+                                    <small>1 kg H2 + 3 kWh elec</small>
+                                </div>
                             </div>
                         </div>
                         <div>
                             <div class="flow-box consumer">
                                 <strong>Delta</strong><br>
-                                Electricity Consumer<br>
-                                <small>WTP: 20/14/10/5 ct/kWh</small>
+                                Electricity (Logarithmic)<br>
+                                <small>scale=25, shape=10</small>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <h3>3.2 Objective Function</h3>
+            <h3>4.2 Objective Function</h3>
             <p>The optimization minimizes total "cost" which includes negative utility (willingness to pay):</p>
 
             <div class="equation">
@@ -607,42 +725,71 @@ Flow(nominal_value=<span class="number">5</span>, variable_costs=<span class="nu
 <span class="comment"># Minimizing this = Maximizing (utility - cost) = Welfare</span></pre>
             </div>
 
-            <h3>3.3 Diminishing Marginal Utility</h3>
-            <p>Consumers have <strong>demand tranches</strong> with decreasing willingness to pay, modeling diminishing marginal utility:</p>
+            <h3>4.3 Utility Functions & Tranches</h3>
+            <p>Consumer utility is modeled using mathematical functions that exhibit diminishing marginal utility. These are discretized into <strong>tranches</strong> for linear programming.</p>
 
+            <h4>Logarithmic Utility</h4>
+            <div class="equation">
+                U(x) = scale &times; ln(1 + x / shape)
+                <div class="label">Marginal utility: MU(x) = scale / (shape + x)</div>
+            </div>
+            <p>The marginal utility decreases as consumption increases. Tranches are generated by evaluating marginal utility at midpoints:</p>
+            <div class="code-block">
+<pre><span class="keyword">def</span> <span class="function">generate_tranches</span>(self):
+    tranche_size = self.max_quantity / self.num_tranches
+    tranches = []
+    <span class="keyword">for</span> i <span class="keyword">in</span> range(self.num_tranches):
+        midpoint = (i + <span class="number">0.5</span>) * tranche_size
+        wtp = self.scale / (self.shape + midpoint)  <span class="comment"># Marginal utility at midpoint</span>
+        tranches.append((tranche_size, wtp))
+    <span class="keyword">return</span> tranches</pre>
+            </div>
+
+            <h4>Cobb-Douglas Utility</h4>
+            <div class="equation">
+                U(h, e) = A &times; h<sup>&alpha;</sup> &times; e<sup>&beta;</sup>
+                <div class="label">Requires fixed-proportion bundles of hydrogen and electricity</div>
+            </div>
+            <p>Each bundle contains a fixed ratio of hydrogen and electricity. Marginal bundle utility decreases with consumption:</p>
+            <div class="code-block">
+<pre><span class="comment"># Example: 1 kg H2 + 3 kWh electricity per bundle</span>
+<span class="comment"># With A=15, alpha=0.4, beta=0.6</span>
+<span class="comment"># MU at bundle b: A * alpha * (h_per_bundle)^alpha * (e_per_bundle)^beta * b^(alpha+beta-1)</span></pre>
+            </div>
+
+            <h4>Example Tranche Table</h4>
             <table>
                 <tr>
                     <th>Tranche</th>
-                    <th>Charlie (H2)</th>
-                    <th>Delta (Electricity)</th>
+                    <th>Charlie (H2, Log)</th>
+                    <th>Delta (Elec, Log)</th>
+                    <th>Echo (Bundles, C-D)</th>
                 </tr>
                 <tr>
-                    <td>1st tier</td>
+                    <td>1st</td>
                     <td>5 kg @ 25 ct/kg</td>
                     <td>10 kWh @ 20 ct/kWh</td>
+                    <td>3 bundles @ 18 ct</td>
                 </tr>
                 <tr>
-                    <td>2nd tier</td>
+                    <td>2nd</td>
                     <td>5 kg @ 18 ct/kg</td>
                     <td>10 kWh @ 14 ct/kWh</td>
+                    <td>3 bundles @ 12 ct</td>
                 </tr>
                 <tr>
-                    <td>3rd tier</td>
+                    <td>3rd</td>
                     <td>5 kg @ 12 ct/kg</td>
-                    <td>15 kWh @ 10 ct/kWh</td>
-                </tr>
-                <tr>
-                    <td>4th tier</td>
-                    <td>10 kg @ 6 ct/kg</td>
-                    <td>20 kWh @ 5 ct/kWh</td>
+                    <td>10 kWh @ 10 ct/kWh</td>
+                    <td>3 bundles @ 8 ct</td>
                 </tr>
             </table>
 
             <div class="highlight">
-                <strong>Key Insight:</strong> A tranche is only consumed if the consumer's willingness to pay exceeds the marginal cost of production. For hydrogen, marginal cost = (electricity_cost + transform_cost) / efficiency = (8 + 1.5) / 0.7 = <strong>13.57 ct/kg</strong>. So tranches 3 (12 ct) and 4 (6 ct) won't be consumed!
+                <strong>Key Insight:</strong> A tranche is only consumed if the consumer's willingness to pay exceeds the marginal cost of production. For hydrogen, marginal cost = (electricity_cost + transform_cost) / efficiency = (8 + 1.5) / 0.7 = <strong>13.57 ct/kg</strong>. Tranches with WTP below this threshold won't be consumed!
             </div>
 
-            <h3>3.4 Mathematical Formulation</h3>
+            <h3>4.4 Mathematical Formulation</h3>
             <div class="code-block">
 <pre><span class="comment"># Decision Variables (per timestep t):</span>
 x_alpha[t]      <span class="comment"># Electricity produced by Alpha</span>
@@ -668,9 +815,9 @@ x_alpha + x_grid = x_bravo_in + &Sigma;x_delta_i</pre>
             </div>
         </section>
 
-        <!-- Section 4: Optimization Process -->
+        <!-- Section 5: Optimization Process -->
         <section id="optimization" class="section">
-            <h2>4. Optimization Process</h2>
+            <h2>5. Optimization Process</h2>
             <p>Here's the step-by-step process when you click "Run Simulation":</p>
 
             <h3>Step 1: Build Energy System</h3>
@@ -766,12 +913,12 @@ welfare = total_utility - total_cost</pre>
             </table>
         </section>
 
-        <!-- Section 5: Data Flow -->
+        <!-- Section 6: Data Flow -->
         <section id="data-flow" class="section">
-            <h2>5. Data Flow</h2>
+            <h2>6. Data Flow</h2>
             <p>Data flows between components through JSON files and HTTP API calls.</p>
 
-            <h3>5.1 Configuration Flow</h3>
+            <h3>6.1 Configuration Flow</h3>
             <div class="diagram">
                 <pre>
 User Input (HTML Form)
@@ -797,7 +944,7 @@ UI Update (charts, tables)
                 </pre>
             </div>
 
-            <h3>5.2 Network Data Flow</h3>
+            <h3>6.2 Network Data Flow</h3>
             <div class="diagram">
                 <pre>
 network.py                    network_data.json                 blender_visualize.py
@@ -818,7 +965,26 @@ network.py                    network_data.json                 blender_visualiz
                 </pre>
             </div>
 
-            <h3>5.3 JSON Schema: network_data.json</h3>
+            <h3>6.3 JSON Files</h3>
+
+            <h4>node_registry.json (Source of Truth)</h4>
+            <p>Stores all node configurations with their parameters. Modified by the Node Management API.</p>
+            <div class="code-block">
+<pre>{
+  <span class="string">"generators"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Alpha"</span>, <span class="string">"capacity"</span>: <span class="number">100.0</span>, <span class="string">"cost"</span>: <span class="number">8.0</span>, <span class="string">"profile_type"</span>: <span class="string">"solar"</span>, <span class="string">"position"</span>: [<span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>]}
+  ],
+  <span class="string">"transformers"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Bravo"</span>, <span class="string">"capacity"</span>: <span class="number">50.0</span>, <span class="string">"efficiency"</span>: <span class="number">0.7</span>, <span class="string">"cost"</span>: <span class="number">1.5</span>, ...}
+  ],
+  <span class="string">"consumers"</span>: [
+    {<span class="string">"name"</span>: <span class="string">"Charlie"</span>, <span class="string">"consumer_type"</span>: <span class="string">"logarithmic_hydrogen"</span>, <span class="string">"log_scale"</span>: <span class="number">30.0</span>, ...}
+  ]
+}</pre>
+            </div>
+
+            <h4>network_data.json (Derived)</h4>
+            <p>Auto-generated from node_registry. Contains topology for visualization.</p>
             <div class="code-block">
 <pre>{
   <span class="string">"nodes"</span>: [
@@ -826,15 +992,9 @@ network.py                    network_data.json                 blender_visualiz
       <span class="string">"name"</span>: <span class="string">"Alpha"</span>,
       <span class="string">"node_type"</span>: <span class="string">"producer"</span>,
       <span class="string">"carrier"</span>: <span class="string">"electricity"</span>,
-      <span class="string">"position"</span>: [<span class="number">0.0</span>, <span class="number">5.0</span>, <span class="number">0.0</span>]
-    },
-    {
-      <span class="string">"name"</span>: <span class="string">"Bravo"</span>,
-      <span class="string">"node_type"</span>: <span class="string">"converter"</span>,
-      <span class="string">"carrier"</span>: <span class="string">"both"</span>,
-      <span class="string">"position"</span>: [<span class="number">-3.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>]
+      <span class="string">"position"</span>: [<span class="number">0.0</span>, <span class="number">2.0</span>, <span class="number">0.0</span>]
     }
-    <span class="comment">// ... more nodes</span>
+    <span class="comment">// ... derived from node_registry.generators/transformers/consumers</span>
   ],
   <span class="string">"edges"</span>: [
     {
@@ -842,15 +1002,15 @@ network.py                    network_data.json                 blender_visualiz
       <span class="string">"target"</span>: <span class="string">"Bravo"</span>,
       <span class="string">"carrier"</span>: <span class="string">"electricity"</span>
     }
-    <span class="comment">// ... more edges</span>
+    <span class="comment">// ... auto-generated based on carrier types</span>
   ]
 }</pre>
             </div>
         </section>
 
-        <!-- Section 6: API Reference -->
+        <!-- Section 7: API Reference -->
         <section id="api" class="section">
-            <h2>6. API Reference</h2>
+            <h2>7. API Reference</h2>
 
             <h3>GET /api/config</h3>
             <p>Returns current simulation configuration.</p>
@@ -903,14 +1063,94 @@ network.py                    network_data.json                 blender_visualiz
   <span class="string">"script"</span>: <span class="string">"C:\\...\\blender_visualize.py"</span>
 }</pre>
             </div>
+
+            <h3>Node Management API</h3>
+            <p>CRUD endpoints for dynamic node management:</p>
+
+            <h4>GET /api/nodes</h4>
+            <p>Returns all configured nodes (generators, transformers, consumers).</p>
+            <div class="code-block">
+<pre><span class="comment">// Response</span>
+{
+  <span class="string">"generators"</span>: [{<span class="string">"name"</span>: <span class="string">"Alpha"</span>, <span class="string">"capacity"</span>: <span class="number">100.0</span>, ...}],
+  <span class="string">"transformers"</span>: [{<span class="string">"name"</span>: <span class="string">"Bravo"</span>, <span class="string">"capacity"</span>: <span class="number">50.0</span>, ...}],
+  <span class="string">"consumers"</span>: [{<span class="string">"name"</span>: <span class="string">"Charlie"</span>, <span class="string">"consumer_type"</span>: <span class="string">"logarithmic_hydrogen"</span>, ...}]
+}</pre>
+            </div>
+
+            <h4>POST /api/nodes/generators</h4>
+            <p>Add a new generator.</p>
+            <div class="code-block">
+<pre><span class="comment">// Request</span>
+{
+  <span class="string">"name"</span>: <span class="string">"Solar2"</span>,
+  <span class="string">"capacity"</span>: <span class="number">50.0</span>,
+  <span class="string">"cost"</span>: <span class="number">6.0</span>,
+  <span class="string">"profile_type"</span>: <span class="string">"solar"</span>
+}
+
+<span class="comment">// Response</span>
+{<span class="string">"status"</span>: <span class="string">"ok"</span>, <span class="string">"generator"</span>: {...}}</pre>
+            </div>
+
+            <h4>PUT /api/nodes/generators/&lt;name&gt;</h4>
+            <p>Update an existing generator.</p>
+
+            <h4>DELETE /api/nodes/generators/&lt;name&gt;</h4>
+            <p>Delete a generator.</p>
+            <div class="code-block">
+<pre><span class="comment">// Response</span>
+{<span class="string">"status"</span>: <span class="string">"ok"</span>, <span class="string">"message"</span>: <span class="string">"Generator Solar2 deleted"</span>}</pre>
+            </div>
+
+            <h4>POST /api/nodes/transformers</h4>
+            <p>Add a new transformer (electrolyzer).</p>
+            <div class="code-block">
+<pre><span class="comment">// Request</span>
+{
+  <span class="string">"name"</span>: <span class="string">"Electrolyzer2"</span>,
+  <span class="string">"capacity"</span>: <span class="number">30.0</span>,
+  <span class="string">"efficiency"</span>: <span class="number">0.75</span>,
+  <span class="string">"cost"</span>: <span class="number">1.2</span>
+}</pre>
+            </div>
+
+            <h4>POST /api/nodes/consumers</h4>
+            <p>Add a new consumer.</p>
+            <div class="code-block">
+<pre><span class="comment">// Request - Logarithmic consumer</span>
+{
+  <span class="string">"name"</span>: <span class="string">"Factory"</span>,
+  <span class="string">"consumer_type"</span>: <span class="string">"logarithmic_electricity"</span>,
+  <span class="string">"log_scale"</span>: <span class="number">25.0</span>,
+  <span class="string">"log_shape"</span>: <span class="number">8.0</span>,
+  <span class="string">"log_max_quantity"</span>: <span class="number">40.0</span>
+}
+
+<span class="comment">// Request - Cobb-Douglas consumer</span>
+{
+  <span class="string">"name"</span>: <span class="string">"Plant"</span>,
+  <span class="string">"consumer_type"</span>: <span class="string">"cobb_douglas"</span>,
+  <span class="string">"cd_A"</span>: <span class="number">20.0</span>,
+  <span class="string">"cd_alpha"</span>: <span class="number">0.5</span>,
+  <span class="string">"cd_beta"</span>: <span class="number">0.5</span>,
+  <span class="string">"cd_h_per_bundle"</span>: <span class="number">2.0</span>,
+  <span class="string">"cd_e_per_bundle"</span>: <span class="number">5.0</span>,
+  <span class="string">"cd_max_bundles"</span>: <span class="number">10.0</span>
+}</pre>
+            </div>
+
+            <div class="highlight">
+                <strong>Note:</strong> All node modification endpoints automatically update <code>node_registry.json</code> and regenerate <code>network_data.json</code> with proper edge connections.
+            </div>
         </section>
 
-        <!-- Section 7: Blender Visualization -->
+        <!-- Section 8: Blender Visualization -->
         <section id="blender" class="section">
-            <h2>7. Blender Visualization</h2>
+            <h2>8. Blender Visualization</h2>
             <p>The Blender visualization creates a 3D representation of the network with animated flow particles.</p>
 
-            <h3>7.1 Node Representations</h3>
+            <h3>8.1 Node Representations</h3>
             <table>
                 <tr>
                     <th>Node Type</th>
@@ -934,13 +1174,13 @@ network.py                    network_data.json                 blender_visualiz
                 </tr>
             </table>
 
-            <h3>7.2 Pipe Colors by Carrier</h3>
+            <h3>8.2 Pipe Colors by Carrier</h3>
             <ul>
                 <li><strong>Electricity:</strong> Blue pipes with blue particle flow</li>
                 <li><strong>Hydrogen:</strong> Orange pipes with orange particle flow</li>
             </ul>
 
-            <h3>7.3 Animation System</h3>
+            <h3>8.3 Animation System</h3>
             <div class="code-block">
 <pre><span class="comment"># Flow particles are animated along pipe paths</span>
 <span class="keyword">def</span> <span class="function">animate_particles</span>(pipe, num_particles=<span class="number">5</span>):
@@ -956,7 +1196,7 @@ network.py                    network_data.json                 blender_visualiz
             particle.keyframe_insert(data_path=<span class="string">"location"</span>)</pre>
             </div>
 
-            <h3>7.4 Sync Workflow</h3>
+            <h3>8.4 Sync Workflow</h3>
             <ol>
                 <li>Run simulation from web controller</li>
                 <li>Click "Launch Blender" to open visualization</li>
