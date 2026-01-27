@@ -492,12 +492,26 @@ def build_default_visualization():
     build_visualization_from_data(network_data, animate=True)
 
 
+def save_blend_file(filepath: str = None):
+    """Save the current scene as a .blend file."""
+    if not BPY_AVAILABLE:
+        return
+
+    if filepath is None:
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        filepath = os.path.join(script_dir, 'hydrogen_network.blend')
+
+    bpy.ops.wm.save_as_mainfile(filepath=filepath)
+    print(f"Saved Blender file to: {filepath}")
+
+
 # Main execution
 if __name__ == "__main__":
     if BPY_AVAILABLE:
         # Check if network_data.json exists
         script_dir = os.path.dirname(os.path.realpath(__file__))
         json_path = os.path.join(script_dir, 'network_data.json')
+        blend_path = os.path.join(script_dir, 'hydrogen_network.blend')
 
         if os.path.exists(json_path):
             print(f"Loading network from {json_path}")
@@ -506,6 +520,10 @@ if __name__ == "__main__":
         else:
             print("No network_data.json found, using default network")
             build_default_visualization()
+
+        # Save the .blend file
+        save_blend_file(blend_path)
+
     else:
         print("\nThis script must be run inside Blender.")
         print("Usage:")
@@ -514,3 +532,4 @@ if __name__ == "__main__":
         print("  3. Open this file and click 'Run Script'")
         print("\nOr run from command line:")
         print("  blender --python blender_visualize.py")
+        print("\nThis will create 'hydrogen_network.blend' in the same folder.")
