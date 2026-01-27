@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hydrogen Simulation Controller</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -513,6 +514,24 @@
                 </table>
             </div>
 
+            <!-- Time Series Charts Card -->
+            <div class="card card-wide">
+                <h2><span class="icon">📈</span> Time Series Analysis</h2>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <div id="chart-electricity" style="width:100%;height:280px;"></div>
+                    </div>
+                    <div>
+                        <div id="chart-hydrogen" style="width:100%;height:280px;"></div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <div id="chart-stacked" style="width:100%;height:300px;"></div>
+                </div>
+            </div>
+
             <!-- Network Card -->
             <div class="card">
                 <h2><span class="icon">🔗</span> Network Topology</h2>
@@ -800,6 +819,11 @@
         function updateResults(data) {
             const s = data.summary;
 
+            // Update time series charts
+            if (data.flows) {
+                updateCharts(data);
+            }
+
             // Economic results
             document.getElementById('res-costs').textContent = (s.total_costs || 0).toFixed(0) + ' ct';
             document.getElementById('res-utility').textContent = (s.total_utility || 0).toFixed(0) + ' ct';
@@ -893,6 +917,238 @@
         }
 
         window.addEventListener('resize', renderNetwork);
+
+        // =========================================
+        // Time Series Charts with Plotly
+        // =========================================
+
+        const chartColors = {
+            alpha: '#4ecca3',      // Green - Alpha production
+            grid: '#e74c3c',       // Red - Grid supply
+            bravo: '#f0c040',      // Yellow - Electrolyzer
+            delta: '#3498db',      // Blue - Delta consumption
+            charlie: '#9b59b6',    // Purple - Charlie consumption
+            hydrogen: '#1abc9c'    // Teal - Hydrogen
+        };
+
+        const chartLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0.2)',
+            font: { color: '#eee', size: 11 },
+            margin: { t: 40, r: 20, b: 50, l: 60 },
+            legend: { orientation: 'h', y: -0.15 },
+            xaxis: {
+                title: 'Hour',
+                gridcolor: 'rgba(255,255,255,0.1)',
+                zerolinecolor: 'rgba(255,255,255,0.2)'
+            },
+            yaxis: {
+                gridcolor: 'rgba(255,255,255,0.1)',
+                zerolinecolor: 'rgba(255,255,255,0.2)'
+            }
+        };
+
+        function initCharts() {
+            // Electricity chart placeholder
+            Plotly.newPlot('chart-electricity', [], {
+                ...chartLayout,
+                title: { text: 'Electricity Flows', font: { size: 14, color: '#4ecca3' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Power (kW)' }
+            }, { responsive: true });
+
+            // Hydrogen chart placeholder
+            Plotly.newPlot('chart-hydrogen', [], {
+                ...chartLayout,
+                title: { text: 'Hydrogen Flows', font: { size: 14, color: '#1abc9c' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Flow (kg/h)' }
+            }, { responsive: true });
+
+            // Stacked area chart placeholder
+            Plotly.newPlot('chart-stacked', [], {
+                ...chartLayout,
+                title: { text: 'Energy Balance Over Time', font: { size: 14, color: '#4ecca3' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Energy (kWh)' }
+            }, { responsive: true });
+        }
+
+        function updateCharts(data) {
+            const flows = data.flows;
+            const periods = data.config.periods;
+            const hours = Array.from({ length: periods }, (_, i) => i);
+
+            // Extract flow data (handle various formats and naming conventions)
+            const getFlowData = (flowNames) => {
+                // Accept array of possible names
+                const names = Array.isArray(flowNames) ? flowNames : [flowNames];
+                for (const name of names) {
+                    // Try exact match first
+                    if (flows[name]) {
+                        const flow = flows[name];
+                        if (flow.length === 0) continue;
+                        // If nested array [[val], [val], ...], extract values
+                        if (Array.isArray(flow[0])) {
+                            return flow.map(v => v[0] || 0);
+                        }
+                        return flow;
+                    }
+                    // Try case-insensitive match
+                    const key = Object.keys(flows).find(k => k.toLowerCase() === name.toLowerCase());
+                    if (key) {
+                        const flow = flows[key];
+                        if (flow.length === 0) continue;
+                        if (Array.isArray(flow[0])) {
+                            return flow.map(v => v[0] || 0);
+                        }
+                        return flow;
+                    }
+                }
+                return new Array(periods).fill(0);
+            };
+
+            // Get all flow data (try multiple possible names)
+            const alphaProduction = getFlowData(['Alpha_production', 'alpha_production']);
+            const gridSupply = getFlowData(['Grid_supply', 'grid_supply']);
+            const bravoConversion = getFlowData(['Bravo_conversion', 'bravo_conversion']);
+            const deltaConsumption = getFlowData(['Delta_consumption', 'delta_consumption']);
+            const charlieConsumption = getFlowData(['Charlie_consumption', 'charlie_consumption']);
+
+            // Estimate electrolyzer input/output from conversion data
+            const bravoInput = bravoConversion.map(v => v / (data.config.bravo_efficiency || 0.7));
+            const bravoOutput = bravoConversion;
+
+            // Electricity chart - production vs consumption
+            const electricityTraces = [
+                {
+                    x: hours,
+                    y: alphaProduction,
+                    name: 'Alpha Production',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.alpha, width: 2 },
+                    marker: { size: 4 }
+                },
+                {
+                    x: hours,
+                    y: gridSupply,
+                    name: 'Grid Supply',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.grid, width: 2, dash: 'dash' },
+                    marker: { size: 4 }
+                },
+                {
+                    x: hours,
+                    y: bravoInput,
+                    name: 'To Electrolyzer',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.bravo, width: 2 },
+                    marker: { size: 4 }
+                },
+                {
+                    x: hours,
+                    y: deltaConsumption,
+                    name: 'Delta Consumption',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.delta, width: 2 },
+                    marker: { size: 4 }
+                }
+            ];
+
+            Plotly.react('chart-electricity', electricityTraces, {
+                ...chartLayout,
+                title: { text: 'Electricity Flows', font: { size: 14, color: '#4ecca3' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Power (kW)' }
+            });
+
+            // Hydrogen chart
+            const hydrogenTraces = [
+                {
+                    x: hours,
+                    y: bravoOutput,
+                    name: 'Bravo Production',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    fill: 'tozeroy',
+                    line: { color: chartColors.hydrogen, width: 2 },
+                    fillcolor: 'rgba(26, 188, 156, 0.3)'
+                },
+                {
+                    x: hours,
+                    y: charlieConsumption,
+                    name: 'Charlie Consumption',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: chartColors.charlie, width: 2 },
+                    marker: { size: 5 }
+                }
+            ];
+
+            Plotly.react('chart-hydrogen', hydrogenTraces, {
+                ...chartLayout,
+                title: { text: 'Hydrogen Flows', font: { size: 14, color: '#1abc9c' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Flow (kg/h)' }
+            });
+
+            // Stacked area chart - energy balance
+            const stackedTraces = [
+                {
+                    x: hours,
+                    y: alphaProduction,
+                    name: 'Alpha (Local)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy',
+                    line: { color: chartColors.alpha, width: 0 },
+                    fillcolor: 'rgba(78, 204, 163, 0.7)',
+                    stackgroup: 'supply'
+                },
+                {
+                    x: hours,
+                    y: gridSupply,
+                    name: 'Grid Import',
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tonexty',
+                    line: { color: chartColors.grid, width: 0 },
+                    fillcolor: 'rgba(231, 76, 60, 0.7)',
+                    stackgroup: 'supply'
+                },
+                {
+                    x: hours,
+                    y: deltaConsumption.map(v => -v),
+                    name: 'Delta (Direct)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy',
+                    line: { color: chartColors.delta, width: 0 },
+                    fillcolor: 'rgba(52, 152, 219, 0.7)',
+                    stackgroup: 'demand'
+                },
+                {
+                    x: hours,
+                    y: bravoInput.map(v => -v),
+                    name: 'Electrolyzer',
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tonexty',
+                    line: { color: chartColors.bravo, width: 0 },
+                    fillcolor: 'rgba(240, 192, 64, 0.7)',
+                    stackgroup: 'demand'
+                }
+            ];
+
+            Plotly.react('chart-stacked', stackedTraces, {
+                ...chartLayout,
+                title: { text: 'Energy Balance: Supply (+) vs Demand (-)', font: { size: 14, color: '#4ecca3' } },
+                yaxis: { ...chartLayout.yaxis, title: 'Power (kW)', zeroline: true, zerolinewidth: 2 },
+                barmode: 'relative'
+            });
+        }
+
+        // Initialize charts on page load
+        document.addEventListener('DOMContentLoaded', initCharts);
     </script>
 </body>
 </html>
