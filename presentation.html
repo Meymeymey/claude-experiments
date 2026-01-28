@@ -335,10 +335,10 @@
             <h2>2. System Architecture</h2>
             <div class="diagram">
                 <pre>
-+------------------+     +------------------+     +------------------+
-|   Web Browser    |     |  Flask Server    |     |    Blender       |
-|  (controller.html|<--->|  (controller.py) |<--->| (visualization)  |
-+------------------+     +------------------+     +------------------+
++------------------+     +------------------+
+|   Web Browser    |     |  Flask Server    |
+|  (controller.html|<--->|  (controller.py) |
++------------------+     +------------------+
                                  |
                                  v
                          +------------------+
@@ -365,10 +365,6 @@
                 <div class="tech-card">
                     <h4>NetworkX</h4>
                     <p>Graph topology</p>
-                </div>
-                <div class="tech-card">
-                    <h4>Blender</h4>
-                    <p>3D visualization</p>
                 </div>
                 <div class="tech-card">
                     <h4>Pyomo</h4>
@@ -656,7 +652,7 @@ Node Registry → Build oemof Model → Solve LP (HiGHS) → Extract Results
                     <li><strong>Problem:</strong> No accessible H2/electricity data</li>
                     <li><strong>Solution:</strong> Simulate with welfare-maximizing LP</li>
                     <li><strong>Model:</strong> Utility tranches + production costs</li>
-                    <li><strong>Tools:</strong> oemof + HiGHS + Flask + Blender</li>
+                    <li><strong>Tools:</strong> oemof + HiGHS + Flask</li>
                     <li><strong>Result:</strong> Transparent, configurable energy system simulation</li>
                 </ul>
             </div>
@@ -664,7 +660,7 @@ Node Registry → Build oemof Model → Solve LP (HiGHS) → Extract Results
 
         <footer>
             <p>Hydrogen Simulation System</p>
-            <p>oemof.solph | NetworkX | Flask | Blender</p>
+            <p>oemof.solph | NetworkX | Flask</p>
         </footer>
     </div>
 </body>
