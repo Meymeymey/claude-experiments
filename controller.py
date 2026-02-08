@@ -1654,10 +1654,37 @@ def deploy_webhook():
     """
     try:
         import subprocess as sp
+        import shutil
+
+        # Try to find git executable
+        git_paths = [
+            'git',  # In PATH
+            '/usr/bin/git',
+            '/usr/local/bin/git',
+            '/opt/homebrew/bin/git',
+            shutil.which('git'),  # Let Python find it
+        ]
+
+        git_cmd = None
+        for path in git_paths:
+            if path:
+                try:
+                    result = sp.run([path, '--version'], capture_output=True, timeout=5)
+                    if result.returncode == 0:
+                        git_cmd = path
+                        break
+                except:
+                    continue
+
+        if not git_cmd:
+            return jsonify({
+                'status': 'error',
+                'message': 'Git not found. Tried: ' + ', '.join(str(p) for p in git_paths if p)
+            }), 500
 
         # Pull latest from GitHub
         result = sp.run(
-            ['git', 'pull', 'origin', 'main'],
+            [git_cmd, 'pull', 'origin', 'main'],
             cwd=SCRIPT_DIR,
             capture_output=True,
             text=True,
@@ -1674,6 +1701,7 @@ def deploy_webhook():
                 'status': 'ok',
                 'message': 'Deployed successfully! Restart service for full effect.',
                 'output': output,
+                'git_path': git_cmd,
                 'hint': 'Run: sudo systemctl restart hydrogen'
             })
         else:
