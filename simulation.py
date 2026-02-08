@@ -8,6 +8,9 @@ Economics:
 - Consumers have utility functions with diminishing marginal utility:
   - Charlie & Delta: Logarithmic utility U(x) = a * ln(1 + x/b)
   - Echo: Cobb-Douglas utility U(h,e) = A * h^α * e^β
+
+Note: Node types and utility functions are now also available in the
+modular structure under nodes/, connections/, and utilities/ directories.
 """
 
 import pandas as pd
@@ -17,6 +20,25 @@ from oemof.solph import views
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List, Tuple
 import json
+
+# Import from new modular structure for forwards compatibility
+# These imports allow using the new classes while maintaining backwards compatibility
+try:
+    from .nodes import Generator as GeneratorNode
+    from .nodes import Transformer as TransformerNode
+    from .nodes import Consumer as ConsumerNode
+    from .nodes import Battery as BatteryNode
+    from .nodes import H2Storage as H2StorageNode
+    from .nodes import NodeType, ConsumerType
+    from .nodes.base import Carrier
+    from .connections import Connection, ElectricityConnection, HydrogenConnection, ConnectionFactory
+    from .utilities import LogarithmicUtility as LogarithmicUtilityNew
+    from .utilities import CobbDouglasUtility as CobbDouglasUtilityNew
+    from .utilities import DemandTranche as DemandTrancheNew
+    MODULAR_IMPORTS_AVAILABLE = True
+except ImportError:
+    # Fallback for when running as standalone script
+    MODULAR_IMPORTS_AVAILABLE = False
 
 
 @dataclass
@@ -124,12 +146,20 @@ class CobbDouglasUtility:
 
 
 # =============================================================================
-# Dynamic Node Configuration Classes
+# Dynamic Node Configuration Classes (Legacy)
+# =============================================================================
+# Note: These classes are maintained for backwards compatibility.
+# For new code, prefer using the modular classes in nodes/ directory:
+#   - nodes.Generator
+#   - nodes.Transformer
+#   - nodes.Consumer
+#   - nodes.Battery
+#   - nodes.H2Storage
 # =============================================================================
 
 @dataclass
 class GeneratorConfig:
-    """Configuration for an electricity generator node."""
+    """Configuration for an electricity generator node. (Legacy - use nodes.Generator)"""
     name: str
     capacity: float = 100.0       # Max capacity (kW)
     cost: float = 8.0             # Production cost (ct/kWh)

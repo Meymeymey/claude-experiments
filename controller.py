@@ -1,6 +1,11 @@
 """
 Flask-based controller for the hydrogen simulation.
 Provides a web interface to control Blender sync, run simulations, and adjust parameters.
+
+Note: Node types and connections are now also available in the modular structure:
+- nodes/: Generator, Transformer, Consumer, Battery, H2Storage
+- connections/: Connection, ElectricityConnection, HydrogenConnection
+- utilities/: LogarithmicUtility, CobbDouglasUtility
 """
 
 import json
@@ -15,6 +20,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from network import create_hydrogen_network, export_network_to_json, print_network_info
 import math
+
+# Import from new modular structure
+MODULAR_IMPORTS_AVAILABLE = False
+try:
+    from nodes import Generator, Transformer, Consumer, Battery, H2Storage
+    from nodes import NodeType, ConsumerType
+    from nodes.base import Carrier
+    from connections import Connection, ElectricityConnection, HydrogenConnection, ConnectionFactory
+    from utilities import LogarithmicUtility as LogUtil, CobbDouglasUtility as CDUtil
+    MODULAR_IMPORTS_AVAILABLE = True
+except ImportError:
+    pass  # Will use legacy classes from simulation.py
 
 
 def sanitize_nan(obj):
